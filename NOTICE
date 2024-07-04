@@ -1,0 +1,10 @@
+AWS Price Lists Collector
+Copyright 2024 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+
+*********************
+EXTERNAL DEPENDENCIES
+*********************
+
+"botocore" - "Apache License 2.0"
+"boto3" - "Apache License 2.0"
+"bandit" = "Apache License 2.0"
