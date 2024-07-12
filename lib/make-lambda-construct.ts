@@ -58,12 +58,12 @@ export class MakeLambda extends Construct {
         // And the Lambda
         this.lambda = new python.PythonFunction(this, "ld_" + id, {
             entry: entry,
-            runtime: cdk.aws_lambda.Runtime.PYTHON_3_12,
+            runtime: cdk.aws_lambda.Runtime.PYTHON_3_11,
             handler: "lambda_handler",
             index: "lambda.py",
             layers: layers,
             role: this.role,
-            architecture: cdk.aws_lambda.Architecture.ARM_64,
+            architecture: cdk.aws_lambda.Architecture.X86_64,
             environmentEncryption: encryptionKey,
             environment: environment,
             timeout: timeout,

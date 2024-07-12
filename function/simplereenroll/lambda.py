@@ -21,40 +21,6 @@ import est_common as cmn
 iot_client = boto3.client('iot')
 
 
-# TODO: move to common when building the layer with requirements.txt works
-from cryptography.x509 import load_pem_x509_csr
-from cryptography.x509.oid import NameOID
-def validate_csr(csr: str):
-    """
-    This function validates the CSR contains the right elements
-    :param csr: string
-    :return dict: {
-        "thingName": string,
-        "serialNumber": string
-    }
-    """
-    try:
-        req = load_pem_x509_csr(csr.encode('utf-8'))
-        cn = req.subject.get_attributes_for_oid(NameOID.COMMON_NAME)
-        if not len(cn) > 0:
-            raise Exception("No common name found in CSR")
-        cn = cn[0].value
-        sn = req.subject.get_attributes_for_oid(NameOID.SERIAL_NUMBER)
-        if not len(sn) > 0:
-            raise Exception("No serial number found in CSR")
-        sn = sn[0].value
-        d = {
-            "thingName": cn,
-            "serialNumber": sn
-        }
-        cmn.logger.debug("CSR validation data: {}".format(d))
-        if not cn.startswith(sn):
-            raise Exception("Common name and serial number mismatch")
-        return d
-    except Exception as e:
-        cmn.logger.error(f"Error validating CSR: {e}")
-        return {}
-
 def pre_reenroll(event):
     """
     This is the first function that is called when enrollment happens before the certificate is generated
@@ -62,6 +28,16 @@ def pre_reenroll(event):
     :return: True or False
     """
     return True
+
+
+def enroll(csr ,csr_data):
+    """
+    This is the function that generates the signed certificate
+    :param csr:
+    :param csr_data:
+    :return:
+    """
+    return cmn.sign_csr_aws(iot_client, csr)
 
 
 def post_reenroll(event):
@@ -84,12 +60,12 @@ def lambda_handler(event, context):
         csr = cmn.extract_csr(event)
         if not csr:
             return cmn.error400("CSR extraction failed")
-        csr_data = validate_csr(csr)
+        csr_data = cmn.validate_csr(csr)
         if not csr_data:
             return cmn.error400("CSR validation failed")
         if pre_reenroll(event) is not True:
             return cmn.error400("Pre-enrollment failed")
-        sign_response = cmn.sign_csr(iot_client, csr)
+        sign_response = enroll(csr, csr_data)
         if not sign_response:
             return cmn.error400("Certificate signing failed")
         cert = sign_response['certificatePem']

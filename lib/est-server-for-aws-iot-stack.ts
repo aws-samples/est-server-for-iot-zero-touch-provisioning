@@ -1,6 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import {Construct} from 'constructs';
 import {NagSuppressions} from "cdk-nag";
+import * as python from "@aws-cdk/aws-lambda-python-alpha";
 import {CommonResources} from './common-resources-construct';
 import {MakeLambda} from "./make-lambda-construct"
 import {ApiBase} from "./api-base-construct"
@@ -15,23 +16,15 @@ export class EstServerForAwsIotStack extends cdk.Stack {
         const accessLogsBucket = common.accessLogsS3Bucket;
 
         // Create the Lambda layers containing reusable functions
-        const CommonLambdaLayer = new cdk.aws_lambda.LayerVersion(this, "est-layer-utils" + id, {
+        const CommonLambdaLayer = new python.PythonLayerVersion(this, "est-layer-utils" + id, {
             layerVersionName: "est-layer-utils",
-            code: cdk.aws_lambda.Code.fromAsset("layer/utils"),
-            compatibleRuntimes: [cdk.aws_lambda.Runtime.PYTHON_3_12],
-            description: "Layer of reusable functions for EST Server",
+            entry: "layer/utils/",
+            compatibleRuntimes: [cdk.aws_lambda.Runtime.PYTHON_3_11],
+            description: "Utils for the EST Server",
             removalPolicy: cdk.RemovalPolicy.DESTROY,
-            compatibleArchitectures: [cdk.aws_lambda.Architecture.X86_64, cdk.aws_lambda.Architecture.ARM_64]
+            compatibleArchitectures: [cdk.aws_lambda.Architecture.X86_64]
         });
-        /*
-        const ExtDepLambdaLayer = new cdk.aws_lambda.LayerVersion(this, "est-layer-ext" + id, {
-            layerVersionName: "est-layer-ext",
-            code: cdk.aws_lambda.Code.fromAsset("layer/ext_dependencies"),
-            compatibleRuntimes: [cdk.aws_lambda.Runtime.PYTHON_3_12],
-            description: "External dependencies from requirements.txt for EST Server",
-            removalPolicy: cdk.RemovalPolicy.DESTROY,
-        });
-        */
+
         // Lambda functions responding to the API endpoints
         const ld_cacerts = new MakeLambda(this, "lambda_cacerts",
             {
@@ -254,5 +247,6 @@ export class EstServerForAwsIotStack extends cdk.Stack {
             ],
             true,
         );
+
     }
 }

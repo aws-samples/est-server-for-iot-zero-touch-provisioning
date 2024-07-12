@@ -24,4 +24,4 @@ def lambda_handler(event, context):
     :return: 
     """
     cmn.logger.debug("Event: ".format(event))
-    return cmn.error501()
+    return cmn.nocontent204()
