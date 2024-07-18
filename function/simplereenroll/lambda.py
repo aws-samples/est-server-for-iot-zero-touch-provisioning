@@ -13,12 +13,12 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-import base64
-import boto3
 
+import os
 import est_common as cmn
 
-iot_client = boto3.client('iot')
+CA_CERT_SECRET_ARN = os.environ['CA_CERT_SECRET_ARN']
+CA_KEY_SECRET_ARN = os.environ['CA_KEY_SECRET_ARN']
 
 
 def pre_reenroll(event):
@@ -30,14 +30,27 @@ def pre_reenroll(event):
     return True
 
 
-def enroll(csr ,csr_data):
+def reenroll(csr, csr_data):
     """
-    This is the function that generates the signed certificate
-    :param csr:
-    :param csr_data:
-    :return:
+    This function signs a certificate for a IoT device. If the Thing exists in this account, it will be reattached
+    to the new certificate. The previous certificate stays attached.
+    If the Thing does not exist, no exception is raised because the IoT service could be living in another account.
+    But the new certificate won't be usable until it is attached to a thing.
+    custom code to sign the certificate with your private PKI.
+    :param csr: The Certificate Signing Request
+    :param csr_data: The parsed CSR data as a dict
+    :return dict: {
+        'certificateArn': 'string',
+        'certificateId': 'string',
+        'certificatePem': 'string'
+        }:
     """
-    return cmn.sign_csr_aws(iot_client, csr)
+    pem_cert = cmn.sign_thing_csr(csr=csr, csr_data=csr_data, ca_cert_secret_arn=CA_CERT_SECRET_ARN,
+                                  ca_key_secret_arn=CA_KEY_SECRET_ARN)
+    if pem_cert:
+        registration = cmn.register_certificate_with_iot_core(pem_cert, csr_data['thingName'])
+
+    return pem_cert
 
 
 def post_reenroll(event):
@@ -53,26 +66,24 @@ def lambda_handler(event, context):
     """
     Return a new signed CSR after executing pre-reenroll and post-reenroll custom actions
     """
-    cmn.logger.debug("Event: ".format(event))
+    cmn.logger.debug("Event: {}".format(event))
     try:
         if cmn.validate_enroll_request(event) is not True:
             return cmn.error400("request validation failed")
-        csr = cmn.extract_csr(event)
-        if not csr:
+        csr_str = cmn.extract_csr(event)
+        if not csr_str:
             return cmn.error400("CSR extraction failed")
-        csr_data = cmn.validate_csr(csr)
+        csr_data, csr = cmn.validate_csr(csr_str)
         if not csr_data:
             return cmn.error400("CSR validation failed")
         if pre_reenroll(event) is not True:
             return cmn.error400("Pre-enrollment failed")
-        sign_response = enroll(csr, csr_data)
-        if not sign_response:
+        cert = reenroll(csr, csr_data)
+        if not cert:
             return cmn.error400("Certificate signing failed")
-        cert = sign_response['certificatePem']
-        cmn.logger.warning("New reenrollment certificate signed for {}\n\twith ID: {}\n\tand ARN: {}".format(
-            csr_data, sign_response['certificateId'], sign_response['certificateArn']))
+        cmn.logger.warning("New reenrollment certificate signed for {}".format(csr_data))
         if post_reenroll(event) is not True:
-            return cmn.error_400("Post-enrollment failed")
+            return cmn.error400("Post-enrollment failed")
         return cmn.success200_cert(cert)
     except Exception as e:
         cmn.logger.error(f"Error: {e}")

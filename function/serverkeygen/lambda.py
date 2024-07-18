@@ -15,6 +15,7 @@
 
 import est_common as cmn
 
+
 def lambda_handler(event, context):
     """
     This function is not implemented yet. It is optional in the specification.
@@ -22,5 +23,5 @@ def lambda_handler(event, context):
     :param context: 
     :return: 
     """""
-    cmn.logger.debug("Event: ".format(event))
+    cmn.logger.debug("Event: {}".format(event))
     return cmn.error501()

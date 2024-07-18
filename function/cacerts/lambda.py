@@ -13,34 +13,29 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-import urllib.request
+import os
 import est_common as cmn
+
+
+CA_CERT_SECRET_ARN = os.environ['CA_CERT_SECRET_ARN']
 
 
 def lambda_handler(event, context):
     """
-    Returns the current CA certificate from AWS IoT
+    Returns the current CA certificate used by AWS IoT Core
     :param event: 
     :param context: 
     :return: 
     """
-    cmn.logger.debug("Event: ".format(event))
-    accept = event['headers'].get('Accept', [])
+    cmn.logger.debug("Event: {}".format(event))
+    headers_lc = {k.lower(): v for k, v in event['headers'].items()}
+    accept = headers_lc.get('accept', [])
     if "*/*" not in accept and "application/pkcs7-mime" not in accept:
-        return cmn.error400("Unsupported Accept header")
-    q_params = event['queryStringParameters']
-    ctype = q_params['certificate-type'] if (q_params is not None and 'certificate-type'
-                                             in event['queryStringParameters']) else "RSA"
-    if ctype == 'RSA':
-        cert_url = cmn.RSA_CA_CERT_URL
-    elif ctype == 'ECC':
-        cert_url = cmn.ECC_CA_CERT_URL
-    else:
-        return cmn.error400(f"Unsupported certificate type: {ctype}")
-    try:
-        with urllib.request.urlopen(cert_url) as response:
-            cert = response.read().decode('utf-8')
+        cmn.logger.warn("Unsupported accept header: {}".format(accept))
+        return cmn.error400("Unsupported accept header")
+    cert = cmn.get_secret_value(CA_CERT_SECRET_ARN)
+    if cert:
         return cmn.success200_cert(cert)
-    except Exception as e:
-        msg = f"Failed to retrieve certificate: {e}"
-        return cmn.error500(msg)
+    else:
+        cmn.logger.error("Failed to retrieve certificate ARN: {}".format(CA_CERT_SECRET_ARN))
+        return cmn.error500("Failed to retrieve the certificate")

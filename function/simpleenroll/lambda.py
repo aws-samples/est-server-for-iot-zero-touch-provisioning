@@ -13,11 +13,11 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-import boto3
-
+import os
 import est_common as cmn
 
-iot_client = boto3.client('iot')
+CA_CERT_SECRET_ARN = os.environ['CA_CERT_SECRET_ARN']
+CA_KEY_SECRET_ARN = os.environ['CA_KEY_SECRET_ARN']
 
 
 def pre_enroll(event):
@@ -31,13 +31,13 @@ def pre_enroll(event):
 
 def enroll(csr, csr_data):
     """
-    This is the function that generates the signed certificate
-    :param csr_data:
-    :param csr:
-    :param event:
-    :return:
+    This is the function that generates the certificate for an IoT device.
+    :param object csr: The Certificate Signing Request object
+    :param dict csr_data: The parsed CSR data
+    :return str: The PEM encoded signed certificate
     """
-    return cmn.sign_csr_aws(iot_client, csr)
+    return cmn.sign_thing_csr(csr=csr, csr_data=csr_data, ca_cert_secret_arn=CA_CERT_SECRET_ARN,
+                              ca_key_secret_arn=CA_KEY_SECRET_ARN)
 
 
 def post_enroll(event):
@@ -54,26 +54,24 @@ def lambda_handler(event, context):
     Return a new signed CSR after executing pre-enroll and post-enroll custom actions
 
     """
-    cmn.logger.debug("Event: ".format(event))
+    cmn.logger.debug("Event: {}".format(event))
     try:
         if cmn.validate_enroll_request(event) is not True:
             return cmn.error400("request validation failed")
-        csr = cmn.extract_csr(event)
-        if not csr:
+        csr_str = cmn.extract_csr(event)
+        if not csr_str:
             return cmn.error400("CSR extraction failed")
-        csr_data = cmn.validate_csr(csr)
+        csr_data, csr = cmn.validate_csr(csr_str)
         if not csr_data:
             return cmn.error400("CSR validation failed")
         if pre_enroll(event) is not True:
             return cmn.error400("Pre-enrollment failed")
-        sign_response = enroll(csr, csr_data)
-        if not sign_response:
+        cert = enroll(csr, csr_data)
+        if not cert:
             return cmn.error400("Certificate signing failed")
-        cert = sign_response['certificatePem']
-        cmn.logger.warning("New enrollment certificate signed for {}\n\twith ID: {}\n\tand ARN: {}".format(
-            csr_data, sign_response['certificateId'], sign_response['certificateArn']))
+        cmn.logger.warning("New enrollment certificate signed for {}".format(csr_data))
         if post_enroll(event) is not True:
-            return cmn.error_400("Post-enrollment failed")
+            return cmn.error400("Post-enrollment failed")
         return cmn.success200_cert(cert)
     except Exception as e:
         cmn.logger.error(f"Error: {e}")

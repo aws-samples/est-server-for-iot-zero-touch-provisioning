@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
-import  {App, Aspects, Tags }  from 'aws-cdk-lib';
 import { EstServerForAwsIotStack } from '../lib/est-server-for-aws-iot-stack';
 import {AwsSolutionsChecks, NagSuppressions} from "cdk-nag";
 
@@ -23,9 +22,9 @@ const estStack = new EstServerForAwsIotStack(app, 'EstServerForAwsIotStack', {
 });
 
 // Create an application in AWS Service Catalog
-Tags.of(estStack).add("APPLICATION", "EST Server for AWS IoT")
+cdk.Tags.of(estStack).add("APPLICATION", "EST Server for AWS IoT")
 // Use cdk-nag to inspect the stack for common problems
-Aspects.of(app).add(new AwsSolutionsChecks( {verbose: true} ));
+cdk.Aspects.of(app).add(new AwsSolutionsChecks( {verbose: true} ));
 // TODO: Remove when python3.12 builds the Layer without failure
         NagSuppressions.addStackSuppressions(
             estStack,

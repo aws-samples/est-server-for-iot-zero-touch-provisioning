@@ -2,17 +2,28 @@ import * as cdk from 'aws-cdk-lib';
 import {Construct} from 'constructs';
 import {NagSuppressions} from "cdk-nag";
 import * as python from "@aws-cdk/aws-lambda-python-alpha";
+import { parse as yamlParse } from "yaml";
+import * as fs from 'node:fs';
+import * as path from "node:path";
 import {CommonResources} from './common-resources-construct';
-import {MakeLambda} from "./make-lambda-construct"
-import {ApiBase} from "./api-base-construct"
+import {MakeLambda} from "./make-lambda-construct";
+import {ApiBase} from "./api-base-construct";
+import {EstConfig} from "./interfaces";
+import {IotRootCa} from "./iot-root-ca-construct";
 
 export class EstServerForAwsIotStack extends cdk.Stack {
     constructor(scope: Construct, id: string, props?: cdk.StackProps) {
         super(scope, id, props);
 
+        // Parse the YAML file and get the build parameters
+        const configFile: string = this.node.tryGetContext('configFile') as string
+        const unparsedParams = fs.readFileSync(path.resolve(configFile), "utf-8")
+        const estConfig = yamlParse(unparsedParams) as EstConfig
+
         // Create the resources used at large by this application
         const common = new CommonResources(this, "Common Resources");
         const encryptionKey = common.encryptionKey;
+        const secretsEncryptionKey = common.secretsEncryptionKey
         const accessLogsBucket = common.accessLogsS3Bucket;
 
         // Create the Lambda layers containing reusable functions
@@ -25,24 +36,38 @@ export class EstServerForAwsIotStack extends cdk.Stack {
             compatibleArchitectures: [cdk.aws_lambda.Architecture.X86_64]
         });
 
+       // Register the IoT CA and configure JITP if enabled
+        const iot_ca = new IotRootCa(this, "iotRootCa", {
+            encryptionKey: encryptionKey,
+            secretsEncryptionKey: secretsEncryptionKey,
+            accessLogsBucket: accessLogsBucket,
+            estUtilsLambdaLayer: CommonLambdaLayer,
+            estConfig: estConfig,
+        });
+
         // Lambda functions responding to the API endpoints
         const ld_cacerts = new MakeLambda(this, "lambda_cacerts",
             {
                 encryptionKey: encryptionKey,
                 entry: "function/cacerts/",
                 layers: [CommonLambdaLayer],
-                environment: {LOG_LEVEL: "INFO"},
-                timeout: cdk.Duration.seconds(3),
+                environment: {
+                    LOG_LEVEL: estConfig.Properties.lambdaLoggerLevel,
+                    CA_CERT_SECRET_ARN: iot_ca.iotCoreCaCertSecret.secretArn,
+                    },
+                timeout: cdk.Duration.seconds(10),
             }
         );
+        iot_ca.iotCoreCaCertSecret.grantRead(ld_cacerts.lambda)
+        secretsEncryptionKey.grantDecrypt(ld_cacerts.lambda)
 
         const ld_csrattrs = new MakeLambda(this, "lambda_csrattrs",
             {
                 encryptionKey: encryptionKey,
                 entry: "function/csrattrs/",
                 layers: [CommonLambdaLayer],
-                environment: {LOG_LEVEL: "INFO"},
-                timeout: cdk.Duration.seconds(3),
+                environment: {LOG_LEVEL: estConfig.Properties.lambdaLoggerLevel},
+                timeout: cdk.Duration.seconds(10),
             }
         );
 
@@ -51,8 +76,8 @@ export class EstServerForAwsIotStack extends cdk.Stack {
                 encryptionKey: encryptionKey,
                 entry: "function/serverkeygen/",
                 layers: [CommonLambdaLayer],
-                environment: {LOG_LEVEL: "INFO"},
-                timeout: cdk.Duration.seconds(3),
+                environment: {LOG_LEVEL: estConfig.Properties.lambdaLoggerLevel},
+                timeout: cdk.Duration.seconds(10),
             }
         );
 
@@ -61,36 +86,55 @@ export class EstServerForAwsIotStack extends cdk.Stack {
                 encryptionKey: encryptionKey,
                 entry: "function/simpleenroll/",
                 layers: [CommonLambdaLayer],
-                environment: {LOG_LEVEL: "INFO"},
-                timeout: cdk.Duration.seconds(3),
+                environment: {
+                    LOG_LEVEL: estConfig.Properties.lambdaLoggerLevel,
+                    CA_CERT_SECRET_ARN: iot_ca.iotCoreCaCertSecret.secretArn,
+                    CA_KEY_SECRET_ARN: iot_ca.iotCoreCaKeySecret.secretArn
+                },
+                timeout: cdk.Duration.seconds(10),
             }
         );
+        iot_ca.iotCoreCaCertSecret.grantRead(ld_simpleenroll.lambda)
+        iot_ca.iotCoreCaKeySecret.grantRead(ld_simpleenroll.lambda)
+        secretsEncryptionKey.grantDecrypt(ld_simpleenroll.lambda)
 
-        // Policy allowing creating Certificate from  CSR
-        const createCertFromCsrPolicy = new cdk.aws_iam.PolicyStatement({
-            effect: cdk.aws_iam.Effect.ALLOW,
-            actions: [
-                "iot:CreateCertificateFromCsr"
-            ],
-            resources: ["*"],
-        });
-
-        ld_simpleenroll.role.addToPolicy(createCertFromCsrPolicy);
-
-        const ld_simplereenroll = new MakeLambda(this, "lambda_simplereenroll",
+       const ld_simplereenroll = new MakeLambda(this, "lambda_simplereenroll",
             {
                 encryptionKey: encryptionKey,
                 entry: "function/simplereenroll/",
                 layers: [CommonLambdaLayer],
-                environment: {LOG_LEVEL: "INFO"},
-                timeout: cdk.Duration.seconds(3),
+                environment: {
+                    LOG_LEVEL: estConfig.Properties.lambdaLoggerLevel,
+                    CA_CERT_SECRET_ARN: iot_ca.iotCoreCaCertSecret.secretArn,
+                    CA_KEY_SECRET_ARN: iot_ca.iotCoreCaKeySecret.secretArn
+                },
+                timeout: cdk.Duration.seconds(10),
             }
         );
+        iot_ca.iotCoreCaCertSecret.grantRead(ld_simplereenroll.lambda)
+        iot_ca.iotCoreCaKeySecret.grantRead(ld_simplereenroll.lambda)
+        secretsEncryptionKey.grantDecrypt(ld_simplereenroll.lambda)
 
-        ld_simplereenroll.role.addToPolicy(createCertFromCsrPolicy)
+        // Policy allowing attaching a renewed certification to a Thing
+        const reenrollmentPolicy = new cdk.aws_iam.PolicyStatement({
+            effect: cdk.aws_iam.Effect.ALLOW,
+            actions: [
+                "iot:DescribeThing",
+                "iot:AttachThingPrincipal",
+                "iot:RegisterCertificate",
+            ],
+            resources: ["*"],
+        });
+        ld_simplereenroll.role.addToPolicy(reenrollmentPolicy)
 
         // Get the API base from the construct
-        const api = new ApiBase(this, "rest-api-base", {encryptionKey: encryptionKey}).api
+        const api = new ApiBase(this, "rest-api-base", {
+            encryptionKey: encryptionKey,
+            secretsEncryptionKey: secretsEncryptionKey,
+            accessLogsBucket: accessLogsBucket,
+            estUtilsLambdaLayer: CommonLambdaLayer,
+            estConfig: estConfig,
+        }).api;
 
         // Set a default request validator - body is usually base64 encoded so no validation by API Gateway
         const requestValidator = new cdk.aws_apigateway.RequestValidator(this,
@@ -106,7 +150,7 @@ export class EstServerForAwsIotStack extends cdk.Stack {
                     'method.request.header.Content-Type': true,
                     'method.request.header.Content-Transfer-Encoding': true,
                     'method.request.header.Content-Disposition': true,
-                    'method.request.querystring.tenant-id': true
+                    'method.request.querystring.tenant-id': false
                 }
 
         const est_res = api.root.addResource(".well-known").addResource("est")
@@ -129,7 +173,6 @@ export class EstServerForAwsIotStack extends cdk.Stack {
                 requestValidator: requestValidator,
                 requestParameters: {
                     'method.request.header.Accept': true,
-                    'method.request.querystring.certificate-type': false
                 }
             });
 
@@ -204,7 +247,7 @@ export class EstServerForAwsIotStack extends cdk.Stack {
                 requestParameters: PostReqParams,
             });
 
-       // Suppress findings for acceptable CDK-NAG warnings and errors
+       // Suppress findings for acceptable CDK-NAG warnings and errors - doesn't work from API construct
         NagSuppressions.addResourceSuppressions(
             api,
             [
@@ -213,14 +256,12 @@ export class EstServerForAwsIotStack extends cdk.Stack {
                     reason: "The API has a request validator for query parameters and headers. Cannot do on body.",
                 },
                 {
-                    // TODO: check if still necessary after client cert implementation
                     id: "AwsSolutions-APIG4",
-                    reason: "This API is public. Client certificate is used.",
+                    reason: "This API must be public. mTLS is used.",
                 },
                 {
-                    // TODO: check if still necessary after client cert implementation
                     id: "AwsSolutions-COG4",
-                    reason: "This API is public. Client certificate is used.",
+                    reason: "This API must be public. mTLS is used.",
                 },
             ],
             true
@@ -247,6 +288,6 @@ export class EstServerForAwsIotStack extends cdk.Stack {
             ],
             true,
         );
-
     }
 }
+

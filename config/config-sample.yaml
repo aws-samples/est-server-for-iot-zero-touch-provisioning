@@ -1,0 +1,30 @@
+# Configuration of the EST Server
+Properties:
+  # EST Service
+  apiCustomDomainName: "YOUR API DOMAIN NAME HERE"
+  apiCertificateArn: "YOUR API CERTIFICATE ARN from CERTIFICATE MANAGER  HERE"
+ # EST mTLS server side
+  estMtlsCaSecretsName: "estMtlsCaSecrets"
+  estMtlsCaCertValidity: 10
+  # EST mTLS client side
+  estMtlsClientSecretsName: "estMtlsClientSecrets"
+  estMtlsClientPfxSecretName: "estMtlsClientPfx"
+  estMtlsClientCertValidity: 10
+  # IoT Core
+  iotCoreEstCaCertSecretName: "estIotCoreCaSecretCert4"
+  iotCoreEstCaKeySecretName: "estIotCoreCaSecretKey4"
+  iotCoreEstCaValidityYears: 10
+  iotTemplatePath: "config/iot_template_default.json"
+  iotTemplateName: "est_iot_provisioning_template" # 36 characters max !!
+  iotPolicyPath: "config/iot_policy_default.json"
+  iotPolicyName: "est_iot_policy_default"
+  # Lambda functions (applies to all, can be modified individually with function environment variable)
+  lambdaLoggerLevel: "INFO"
+
+DeploymentOptions:
+  # mTLS Truststore certificate chain - generated if ""
+  mTlsTruststoreCertificatesChainFile: ""
+  # Generates Iot Core self-signed certificate and private key for signing CSR
+  generateIotCaCertificate: false
+  # If 'true' IoT Core will be configured for JITP
+  configureJITP: false

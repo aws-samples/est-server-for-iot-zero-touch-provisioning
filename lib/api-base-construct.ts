@@ -1,9 +1,15 @@
 import * as cdk from 'aws-cdk-lib';
 import {Construct} from 'constructs';
 import {NagSuppressions} from "cdk-nag";
+import {MtlsTruststore} from "./mtls-struststore-construct";
+import {EstConfig} from "./interfaces"
 
 export interface ApiBaseProps {
     encryptionKey: cdk.aws_kms.Key;
+    secretsEncryptionKey: cdk.aws_kms.Key;
+    accessLogsBucket: cdk.aws_s3.Bucket;
+    estUtilsLambdaLayer: cdk.aws_lambda.ILayerVersion;
+    estConfig: EstConfig;
 }
 
 export class ApiBase extends Construct {
@@ -14,6 +20,16 @@ export class ApiBase extends Construct {
 
         const encryptionKey = props.encryptionKey
 
+        // Prepare the Truststore for mTLS
+        const mtlsTruststore = new MtlsTruststore(this, "EstMtlsTruststore", {
+            encryptionKey: encryptionKey,
+            secretsEncryptionKey: props.secretsEncryptionKey,
+            accessLogsBucket: props.accessLogsBucket,
+            estUtilsLambdaLayer: props.estUtilsLambdaLayer,
+            estConfig: props.estConfig,
+            }
+        );
+
         // Create a REST API with Lambda Proxy for python and CloudWatch logs enabled
 
         const apiLogGroup = new cdk.aws_logs.LogGroup(this, "apiLogGroup" + id, {
@@ -22,10 +38,21 @@ export class ApiBase extends Construct {
             removalPolicy: cdk.RemovalPolicy.DESTROY,
         });
 
+        //TODO: disable Execute API endpoint once mTLS is validated
         this.api = new cdk.aws_apigateway.RestApi(this, "est-api" + id, {
             restApiName: "EST-Server",
             description: "API for EST Server for AWS IoT",
             cloudWatchRole: true,
+            domainName: {
+                domainName: props.estConfig.Properties.apiCustomDomainName,
+                securityPolicy: cdk.aws_apigateway.SecurityPolicy.TLS_1_2, //required for mTLS
+                certificate: cdk.aws_certificatemanager.Certificate.fromCertificateArn(this, "domainCert",
+                    props.estConfig.Properties.apiCertificateArn),
+                mtls: {
+                    bucket: mtlsTruststore.truststoreBucket,
+                    key: mtlsTruststore.truststorePemFile,
+                }
+            },
             deployOptions: {
                 stageName: "prod",
                 description: "Production stage of the EST Server REST API",
@@ -57,6 +84,8 @@ export class ApiBase extends Construct {
             deploy: true,
             disableExecuteApiEndpoint: false,
         });
+
+        this.api.node.addDependency(mtlsTruststore)
 
         //Add WAF in front of the API with the managed common rule set
         const waf = new cdk.aws_wafv2.CfnWebACL(this, "est-api-waf" + id, {
@@ -104,7 +133,7 @@ export class ApiBase extends Construct {
                 {
                     id: "AwsSolutions-IAM4",
                     reason: "Managed policy is used by CDK when creating the API CloudWatch role",
-                },
+                }
             ],
             true
         );
