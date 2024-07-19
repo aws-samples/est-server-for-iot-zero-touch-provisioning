@@ -11,7 +11,6 @@ export interface ProvisioningTemplateProps {
     estConfig: EstConfig;
 }
 
-// TODO: See for installing IoT Core CA certificate from external
 export class ProvisioningTemplate extends Construct {
     constructor(scope: Construct, id: string, props: ProvisioningTemplateProps) {
         super(scope, id);
