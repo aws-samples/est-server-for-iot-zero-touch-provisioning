@@ -38,7 +38,6 @@ export class ApiBase extends Construct {
             removalPolicy: cdk.RemovalPolicy.DESTROY,
         });
 
-        //TODO: disable Execute API endpoint once mTLS is validated
         this.api = new cdk.aws_apigateway.RestApi(this, "est-api" + id, {
             restApiName: "EST-Server",
             description: "API for EST Server for AWS IoT",
@@ -82,7 +81,7 @@ export class ApiBase extends Construct {
             endpointTypes: [cdk.aws_apigateway.EndpointType.REGIONAL],
             retainDeployments: false,
             deploy: true,
-            disableExecuteApiEndpoint: false,
+            disableExecuteApiEndpoint: true,
         });
 
         this.api.node.addDependency(mtlsTruststore)

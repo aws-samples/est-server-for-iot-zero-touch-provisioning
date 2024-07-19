@@ -37,6 +37,7 @@ CLIENT_SECRETS_NAME = os.environ['CLIENT_SECRETS_NAME']
 CLIENT_PFX_SECRET_NAME = os.environ['CLIENT_PFX_SECRET_NAME']
 CLIENT_CERT_VALIDITY = int(os.environ['CLIENT_CERT_VALIDITY'])
 KMS_KEY_ARN = os.environ['KMS_KEY_ARN']
+GENERATE_TRUSTSTORE = os.environ['GENERATE_TRUSTSTORE'] == "true"
 FORCE = os.environ.get('FORCE', False) == "true"
 
 # Set certificate attributes
@@ -94,9 +95,9 @@ def create_or_update(secret_name, secret_value, descr):
 
     try:
         args = {
-            "Name":secret_name,
-            "Description":descr,
-            "KmsKeyId":KMS_KEY_ARN
+            "Name": secret_name,
+            "Description": descr,
+            "KmsKeyId": KMS_KEY_ARN
         }
         if isinstance(secret_value, str):
             args["SecretString"] = secret_value
@@ -133,21 +134,27 @@ def lambda_handler(event, context):
     # Check if an object exists in the S3 bucket
     cmn.logger.debug("Event: {}".format(event))
     if event is not None and FORCE is not True:
+        if secret_exists(CA_SECRETS_NAME) or secret_exists(CLIENT_SECRETS_NAME) or secret_exists(CLIENT_PFX_SECRET_NAME):
+            cmn.logger.warn("Secrets already exist. You must clear all of them if you want to update the Truststore "
+                            "(write a string of less than 10 characters. No modification done.")
+            return
+
         response = s3_client.list_objects(Bucket=BUCKET, Prefix=TRUSTSTORE)
+        if not GENERATE_TRUSTSTORE:
+            cmn.logger.warn("Truststore generation is disabled. No action (Secrets will not be updated).")
+            return
+
         if 'Contents' in response:
             for content in response['Contents']:
                 if content.get('Key') == TRUSTSTORE:
-                    cmn.logger.info("Certificate already exists. No modification done.")
+                    cmn.logger.info("The Truststore chain {} already exists. Delete it from S3 and clear the Secrets"
+                                    "if you want to generate it. No modification done.".format(TRUSTSTORE))
                     return
-        if secret_exists(CA_SECRETS_NAME) or secret_exists(CLIENT_SECRETS_NAME) or secret_exists(CLIENT_PFX_SECRET_NAME):
-            cmn.logger.warn("Secrets already exist but the Truststore file is missing. No modification done.")
-            return
 
     # Create the Root CA
     # Fix me
     root_cert, root_key = cmn.create_self_signed_root_ca(attributes=attributes_root, validity_years=CA_CERT_VALIDITY)
 
-    # TODO: use cmn below
     # The CSR
     client_key = rsa.generate_private_key(
         public_exponent=65537,
@@ -210,13 +217,13 @@ def lambda_handler(event, context):
             descr="API Gateway client mTLS secrets in PFX format"
         )
 
-        # Place the truststore for API Gateway mTLS on S3
+        # Store the truststore for API Gateway mTLS on S3
         truststore = s3_client.put_object(
             Body=root_cert.public_bytes(serialization.Encoding.PEM),
             Bucket=BUCKET,
             Key=TRUSTSTORE
         )
-        cmn.logger.info("Truststore uploaded to S3: {}".format(truststore))
+        cmn.logger.info("Truststore uploaded to S3: {}".format(TRUSTSTORE))
 
         # Place the client files on S3
         s3key = SECRETS_PATH + "/est-client-cert.pem"

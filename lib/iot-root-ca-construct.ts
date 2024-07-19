@@ -17,6 +17,7 @@ import {NagSuppressions} from "cdk-nag";
 import {EstConfig} from "./interfaces"
 import {MakeLambda} from "./make-lambda-construct";
 import {ProvisioningTemplate} from "./provisioning-template-construct"
+import {PopulateExternalIotCertificate} from "./populate-external-iot-cert";
 
 export interface IotRootCaProps {
     encryptionKey: cdk.aws_kms.Key;
@@ -38,13 +39,21 @@ export class IotRootCa  extends Construct {
         const accessLogsBucket = props.accessLogsBucket;
         const estConfig = props.estConfig;
         const estUtilsLambdaLayer = props.estUtilsLambdaLayer;
-        let rootCaCertSecretValue: string = ""
 
         const prov_template = new ProvisioningTemplate(this, "prov-tplt-ct", {
             estConfig: estConfig
         });
 
+        const populateExternalCa = new PopulateExternalIotCertificate(this,
+            "populate-external-iot-cert", {
+                estConfig: estConfig,
+                encryptionKey: encryptionKey,
+                accessLogsBucket: accessLogsBucket
+        });
+
         // Lambda triggerred during deployment to update the secrets (will do only if they are not defined ="")
+        const generateCert = Boolean(estConfig.DeploymentOptions.generateIotCaCertificate) &&
+            !populateExternalCa.registerExternalCa;
         const ld_iot_ca = new MakeLambda(this, "lambda_iot_ca",
         {
             encryptionKey: encryptionKey,
@@ -52,17 +61,22 @@ export class IotRootCa  extends Construct {
             layers: [estUtilsLambdaLayer],
             environment: {
                 LOG_LEVEL: "DEBUG",
-                GENERATE_CERT: estConfig.DeploymentOptions.generateIotCaCertificate.toString(),
+                GENERATE_CERT: generateCert.toString(),
                 CA_CERT_SECRET_NAME: estConfig.Properties.iotCoreEstCaCertSecretName,
                 CA_KEY_SECRET_NAME: estConfig.Properties.iotCoreEstCaKeySecretName,
                 CA_VALIDITY_YEARS: estConfig.Properties.iotCoreEstCaValidityYears.toString(),
                 KMS_KEY_ARN: secretsEncryptionKey.keyArn,
                 REGISTER_CA: estConfig.DeploymentOptions.configureJITP.toString(),
                 PROV_TEMPLATE_NAME: estConfig.Properties.iotTemplateName,
+                PROVISIONING_BUCKET_NAME:  populateExternalCa.iotProvisioningBucket.bucketName,
+                EXTERNAL_CA_CERT_S3_KEY: populateExternalCa.iotCaCertS3Key,
+                EXTERNAL_CA_PKEY_S3_KEY: populateExternalCa.iotCaPKeyS3Key,
             },
             timeout: cdk.Duration.seconds(50),
         });
+        ld_iot_ca.node.addDependency(populateExternalCa)
         secretsEncryptionKey.grantEncryptDecrypt(ld_iot_ca.lambda)
+        populateExternalCa.iotProvisioningBucket.grantReadWrite(ld_iot_ca.lambda)
 
         // Grant create, read and write for the two secrets to the Lambda function
         const resource_base = `arn:aws:secretsmanager:${cdk.Stack.of(this).region}:${cdk.Stack.of(this).account}:secret:`

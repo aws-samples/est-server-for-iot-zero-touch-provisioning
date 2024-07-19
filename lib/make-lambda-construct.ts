@@ -27,7 +27,7 @@ export class MakeLambda extends Construct {
         const logGroup = new cdk.aws_logs.LogGroup(this, id + "_lg", {
             logGroupName: "/aws/lambda/est-server/" + id,
             retention: cdk.aws_logs.RetentionDays.ONE_MONTH,
-            removalPolicy: cdk.RemovalPolicy.DESTROY,
+            removalPolicy: cdk.RemovalPolicy.RETAIN,
             encryptionKey: encryptionKey,
         });
 
@@ -56,6 +56,7 @@ export class MakeLambda extends Construct {
         encryptionKey.grantEncryptDecrypt(this.role);
 
         // And the Lambda
+        // TODO: move to python12 when layer build works in this version
         this.lambda = new python.PythonFunction(this, "ld_" + id, {
             entry: entry,
             runtime: cdk.aws_lambda.Runtime.PYTHON_3_11,

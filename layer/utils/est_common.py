@@ -356,13 +356,18 @@ def sign_externally(csr, csr_data):
     """
     This is an example of how you could sign the certificate externally using a PKI
     :param object csr: The Certificate Signing Request object
-    :param dict csr_data: The parsed CSR data
+    :param dict csr_data: The parsed CSR data see below
     :return dict: {
         'certificateArn': 'string',
         'certificateId': 'string',
         'certificatePem': 'string',
         'certificateRemoved': True|False
         }:
+
+    csr_data = {
+            "thingName": equals common name (CN) from CSR,
+            "serialNumber": equals Serial number (SN) from CSR
+        }
     """
     raise NotImplementedError("Signing a CSR externally is not implemented")
 

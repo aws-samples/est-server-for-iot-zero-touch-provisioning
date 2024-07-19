@@ -11,6 +11,7 @@ export interface ProvisioningTemplateProps {
     estConfig: EstConfig;
 }
 
+// TODO: See for installing IoT Core CA certificate from external
 export class ProvisioningTemplate extends Construct {
     constructor(scope: Construct, id: string, props: ProvisioningTemplateProps) {
         super(scope, id);
@@ -19,27 +20,19 @@ export class ProvisioningTemplate extends Construct {
         let provTemplateArn: string
         // Configure JITP if enabled
         if (estConfig.DeploymentOptions.configureJITP) {
-            // Load the IoT Policy from the json file
-            let policyDoc = JSON.parse(fs.readFileSync(path.resolve(estConfig.Properties.iotPolicyPath), 'utf-8'));
-            // Replace the <REGION> and <ACCOUNT> with their current value
-            for (let statement of policyDoc.Statement) {
-                if (typeof statement.Resource === 'string') {
-                    statement.Resource.replace("<ACCOUNT>", cdk.Stack.of(this).account)
-                    statement.Resource.replace("<REGION>", cdk.Stack.of(this).region)
-                } else {
-                    //it is an array
-                    for (let subst in statement.Resource) {
-                        statement.Resource[subst] = statement.Resource[subst].replace("<ACCOUNT>", cdk.Stack.of(this).account)
-                        statement.Resource[subst] = statement.Resource[subst].replace("<REGION>", cdk.Stack.of(this).region)
-                    }
-                }
-            }
+            // Load the IoT Policy from the json file and replace placeholders by their value
+            let policy_str = fs.readFileSync(path.resolve(estConfig.Properties.iotPolicyPath), 'utf-8')
+            const re_a = /<ACCOUNT_ID>/gi
+            policy_str = policy_str.replace(re_a, cdk.Stack.of(this).account)
+            const re_r = /<REGION>/gi
+            policy_str = policy_str.replace(re_r, cdk.Stack.of(this).region)
+            const policyDoc = JSON.parse(policy_str);
+
             // Create the IoT Policy
             const iotPolicy = new cdk.aws_iot.CfnPolicy(this, 'IotPolicy', {
                 policyName: estConfig.Properties.iotPolicyName,
                 policyDocument: policyDoc,
             });
-
             // Load the IoT Template from the json file
             let template: provisioningTemplate = JSON.parse(fs.readFileSync(path.resolve(estConfig.Properties.iotTemplatePath), 'utf-8'));
             // Add the reference to the IoT Policy if nothing is already in the template

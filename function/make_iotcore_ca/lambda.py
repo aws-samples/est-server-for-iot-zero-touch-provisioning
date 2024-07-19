@@ -25,7 +25,11 @@ CA_VALIDITY_YEARS = int(os.environ['CA_VALIDITY_YEARS'])
 KMS_KEY_ARN = os.environ['KMS_KEY_ARN']
 REGISTER_CA = os.environ['REGISTER_CA'] == "true"
 PROV_TEMPLATE_NAME = os.environ['PROV_TEMPLATE_NAME']
+PROVISIONING_BUCKET_NAME = os.environ['PROVISIONING_BUCKET_NAME']
+EXTERNAL_CA_CERT_S3_KEY = os.environ['EXTERNAL_CA_CERT_S3_KEY']
+EXTERNAL_CA_PKEY_S3_KEY = os.environ['EXTERNAL_CA_PKEY_S3_KEY']
 FORCE = os.environ.get('FORCE', False) == "true"
+
 
 # Set certificate attributes
 attributes = {
@@ -39,13 +43,14 @@ attributes = {
 
 secret_client = boto3.client('secretsmanager')
 iot_client = boto3.client('iot')
+s3_client = boto3.client('s3')
 
 
 def register_ca_once(cert, template_name):
-    if REGISTER_CA is True: # One more safeguard
+    if REGISTER_CA is True:  # One more safeguard
         for ca_cert in iot_client.list_ca_certificates(templateName=template_name)['certificates']:
-            if iot_client.describe_ca_certificate(certificateId=ca_cert['certificateId'])["certificateDescription"] \
-                    ["certificatePem"] == cert:
+            if iot_client.describe_ca_certificate(
+                    certificateId=ca_cert['certificateId'])["certificateDescription"]["certificatePem"] == cert:
                 cmn.logger.info("CA Certificate already registered. No action")
                 return
 
@@ -61,6 +66,14 @@ def register_ca_once(cert, template_name):
         cmn.logger.info("REGISTER_CA is set to False. No action")
 
 
+def update_secret(secret_name, secret_value):
+    secret_client.put_secret_value(
+        SecretId=secret_name,
+        SecretString=secret_value
+    )
+    cmn.logger.info("Updated secret: {}".format(secret_name))
+
+
 def lambda_handler(event, context):
     """
     This function creates a self-signed certificate for the AWS IoT Core private CA, if it does already exist in
@@ -69,8 +82,12 @@ def lambda_handler(event, context):
     :param context:
     :return:
     """
-    INIT_CERT_VALUE = "NULL"
-    INIT_KEY_VALUE = "NULL"
+    init_cert_value = "NULL"
+    init_key_value = "NULL"
+
+    cmn.logger.debug("EXTERNAL_CA_CERT_S3_KEY = {}".format(EXTERNAL_CA_CERT_S3_KEY))
+    cmn.logger.debug("EXTERNAL_CA_PKEY_S3_KEY = {}".format(EXTERNAL_CA_PKEY_S3_KEY))
+
     try:
         cert_value = secret_client.get_secret_value(SecretId=CA_CERT_SECRET_NAME)['SecretString']
     except secret_client.exceptions.ResourceNotFoundException:
@@ -78,11 +95,11 @@ def lambda_handler(event, context):
             Name=CA_CERT_SECRET_NAME,
             Description="IoT Core private CA certificate",
             KmsKeyId=KMS_KEY_ARN,
-            SecretString=INIT_CERT_VALUE
+            SecretString=init_cert_value
         )
-        cert_value = INIT_CERT_VALUE
+        cert_value = init_cert_value
         cmn.logger.info(
-            "GENERATE_CERT is set to False and Cert doesn't exist. Empty Secret created: {}".format(response))
+            "Certificate doesn't exist. Empty Secret created: {}".format(response))
 
     try:
         key_value = secret_client.get_secret_value(SecretId=CA_KEY_SECRET_NAME)['SecretString']
@@ -91,14 +108,74 @@ def lambda_handler(event, context):
             Name=CA_KEY_SECRET_NAME,
             Description="IoT Core private CA key",
             KmsKeyId=KMS_KEY_ARN,
-            SecretString=INIT_KEY_VALUE
+            SecretString=init_key_value
         )
-        key_value = INIT_KEY_VALUE
+        key_value = init_key_value
         cmn.logger.info(
-            "GENERATE_CERT is set to False and Key doesn't exist. Empty Secret created: {}".format(response))
+            "Key doesn't exist. Empty Secret created: {}".format(response))
 
-    if REGISTER_CA is True and cert_value.startswith("-----BEGIN CERTIFICATE-----"):
-        register_ca_once(cert_value, PROV_TEMPLATE_NAME)
+    # Register external CA certificate if allowed and provided
+    # This might register and additional certificate in IoT Core if the pem file has changed
+    if REGISTER_CA is True and EXTERNAL_CA_CERT_S3_KEY != "":
+
+        cert_value = None
+        key_value = None
+        do_update = True
+        try:
+            cmn.logger.debug("Reading external CA certificate from S3")
+            cert_value = s3_client.get_object(
+                Bucket=PROVISIONING_BUCKET_NAME,
+                Key=EXTERNAL_CA_CERT_S3_KEY
+            )['Body'].read()
+            if isinstance(cert_value, bytes):
+                cert_value = cert_value.decode('utf-8')
+        except Exception as e:
+            cmn.logger.critical("Error reading external CA certificate with S3 key:  {}".format(
+                EXTERNAL_CA_CERT_S3_KEY))
+            cmn.logger.critical("Registering external CA Cert & Key process aborted!!!")
+            do_update = False
+
+        try:
+            if EXTERNAL_CA_PKEY_S3_KEY != "" and do_update is True:
+                cmn.logger.debug("Reading external CA private key from S3")
+                # Register private key if available
+                key_value = s3_client.get_object(
+                    Bucket=PROVISIONING_BUCKET_NAME,
+                    Key=EXTERNAL_CA_PKEY_S3_KEY
+                )['Body'].read()
+                if isinstance(key_value, bytes):
+                    key_value = key_value.decode('utf-8')
+        except Exception as e:
+            cmn.logger.error("Error reading external CA private key with S3 key {}".format(
+                EXTERNAL_CA_PKEY_S3_KEY))
+            cmn.logger.critical("Registering external CA Cert & Key process aborted!!!")
+            do_update = False
+
+        if do_update is True:
+            # Store the values
+            update_secret(CA_CERT_SECRET_NAME, cert_value)
+            register_ca_once(cert_value, PROV_TEMPLATE_NAME)
+            update_secret(CA_KEY_SECRET_NAME, key_value)
+
+        # Stay secure - do not expose secrets
+        if EXTERNAL_CA_PKEY_S3_KEY != "":
+            try:
+                response = s3_client.delete_object(
+                    Bucket=PROVISIONING_BUCKET_NAME,
+                    Key=EXTERNAL_CA_PKEY_S3_KEY
+                )
+                cmn.logger.info("External CA private key deleted from S3 for security reasons.\nResponse is: {}".format(response))
+            except Exception as e:
+                pass
+        try:
+            response = s3_client.delete_object(
+                Bucket=PROVISIONING_BUCKET_NAME,
+                Key=EXTERNAL_CA_CERT_S3_KEY
+            )
+            cmn.logger.info("External CA certificate deleted from S3 for security reasons.\nResponse is: {}".format(response))
+        except Exception as e:
+            pass
+        return
 
     if (GENERATE_CERT is not True or len(key_value) > 10 or len(cert_value) > 10) and FORCE is not True:
         if GENERATE_CERT is True:
@@ -111,17 +188,8 @@ def lambda_handler(event, context):
     cert, key = cmn.create_self_signed_root_ca(attributes=attributes, validity_years=CA_VALIDITY_YEARS)
     # Store the certificate and key in Secrets Manager
     cert_pem = cmn.cert_to_pem(cert)
-    cert_response = secret_client.put_secret_value(
-        SecretId=CA_CERT_SECRET_NAME,
-        SecretString=cert_pem,
-    )
-    cmn.logger.info("New Certificate stored in Secret: {}".format(cert_response))
-
-    key_response = secret_client.put_secret_value(
-        SecretId=CA_KEY_SECRET_NAME,
-        SecretString=cmn.private_key_to_pem(key),
-    )
-    cmn.logger.info("New Key stored in Secret: {}".format(key_response))
+    update_secret(CA_CERT_SECRET_NAME, cert_pem)
+    update_secret(CA_KEY_SECRET_NAME, cmn.private_key_to_pem(key))
 
     if REGISTER_CA is True or FORCE is True:
         register_ca_once(cert_pem, PROV_TEMPLATE_NAME)

@@ -26,7 +26,12 @@ export interface EstConfig {
     DeploymentOptions: {
         // mTLS Truststore certificate chain - generated if ""
         mTlsTruststoreCertificatesChainFile: NonNullable<string>
+        // Path to the IoT Core CA Certificate if provided or ""
+        iotCoreCaCertificatePath: NonNullable<string>
+        // Path to the IoT Core CA Private Key if provided or ""
+        iotCoreCaPrivateKeyPath: NonNullable<string>
         // Generates Iot Core self-signed certificate and private key for signing CSR
+        // Ignored if iotCoreCaCertificatePath (just above) is not ""
         generateIotCaCertificate: NonNullable<boolean>
         // If 'true' IoT Core will be configured for JITP
         configureJITP: NonNullable<boolean>

@@ -11,6 +11,7 @@ import {ApiBase} from "./api-base-construct";
 import {EstConfig} from "./interfaces";
 import {IotRootCa} from "./iot-root-ca-construct";
 
+
 export class EstServerForAwsIotStack extends cdk.Stack {
     constructor(scope: Construct, id: string, props?: cdk.StackProps) {
         super(scope, id, props);
@@ -27,6 +28,7 @@ export class EstServerForAwsIotStack extends cdk.Stack {
         const accessLogsBucket = common.accessLogsS3Bucket;
 
         // Create the Lambda layers containing reusable functions
+        // TODO: move to python12 when layer build works in this version
         const CommonLambdaLayer = new python.PythonLayerVersion(this, "est-layer-utils" + id, {
             layerVersionName: "est-layer-utils",
             entry: "layer/utils/",

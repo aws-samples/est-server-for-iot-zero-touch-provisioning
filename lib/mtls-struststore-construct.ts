@@ -20,6 +20,7 @@ import {Construct} from "constructs";
 import {MakeLambda} from "./make-lambda-construct";
 import {EstConfig} from "./interfaces"
 import * as path from "node:path";
+import {NagSuppressions} from "cdk-nag";
 
 export interface MtlsTruststoreProps {
     encryptionKey: cdk.aws_kms.Key;
@@ -43,11 +44,10 @@ export class MtlsTruststore extends Construct {
         const estUtilsLambdaLayer = props.estUtilsLambdaLayer;
         const truststoreBucketName = "estTruststoreBucket";
         const truststoreSecretsPath = "est-mtls-secrets";
-        this.truststorePemFile = "truststore/est-mtls-truststore.pem";
 
         // Bucket for the truststore
         this.truststoreBucket = new cdk.aws_s3.Bucket(this, truststoreBucketName, {
-            //FIXME: enable versioning when problems resolved
+            //TODO: enable KMS encryption to check if API Gateway can still access the truststore
             versioned: true,
             // encryption: cdk.aws_s3.BucketEncryption.KMS,
             // encryptionKey: encryptionKey,
@@ -58,72 +58,75 @@ export class MtlsTruststore extends Construct {
             serverAccessLogsBucket: accessLogsBucket,
             serverAccessLogsPrefix: truststoreBucketName + '/',
             enforceSSL: true,
-            removalPolicy: cdk.RemovalPolicy.RETAIN_ON_UPDATE_OR_DELETE,
+            removalPolicy: cdk.RemovalPolicy.RETAIN,
         });
-
-        if (!estConfig.DeploymentOptions.mTlsTruststoreCertificatesChainFile) {
-            // Generate the server and client secrets
-
-            const ld_truststore = new MakeLambda(this, "lambda_truststore",
-                {
-                    encryptionKey: encryptionKey,
-                    entry: "function/mtls_truststore",
-                    layers: [estUtilsLambdaLayer],
-                    environment: {
-                        LOG_LEVEL: "DEBUG",
-                        TRUSTSTORE_S3_KEY: this.truststorePemFile,
-                        SECRETS_PATH: truststoreSecretsPath,
-                        BUCKET: this.truststoreBucket.bucketName,
-                        DOMAIN: estConfig.Properties.apiCustomDomainName,
-                        CA_SECRETS_NAME: estConfig.Properties.estMtlsCaSecretsName,
-                        CA_CERT_VALIDITY:estConfig.Properties.estMtlsCaCertValidity.toString(),
-                        CLIENT_SECRETS_NAME: estConfig.Properties.estMtlsClientSecretsName,
-                        CLIENT_PFX_SECRET_NAME: estConfig.Properties.estMtlsClientPfxSecretName,
-                        CLIENT_CERT_VALIDITY: estConfig.Properties.estMtlsClientCertValidity.toString(),
-                        KMS_KEY_ARN: secretsEncryptionKey.keyArn
-                    },
-                    timeout: cdk.Duration.seconds(50),
-                });
-            this.truststoreBucket.grantReadWrite(ld_truststore.role)
-            secretsEncryptionKey.grantEncryptDecrypt(ld_truststore.role)
-
-            // Grant create, read and write for the two secrets to the Lambda function
-            const resource_base = `arn:aws:secretsmanager:${cdk.Stack.of(this).region}:${cdk.Stack.of(this).account}:secret:`
-            const createSecretsPolicyStatement = new cdk.aws_iam.PolicyStatement({
-                effect: cdk.aws_iam.Effect.ALLOW,
-                actions: [
-                    "secretsmanager:CreateSecret",
-                    "secretsmanager:GetSecretValue",
-                    "secretsmanager:PutSecretValue",
-                ],
-                resources: [
-                    resource_base + estConfig.Properties.estMtlsCaSecretsName + "-??????",
-                    resource_base + estConfig.Properties.estMtlsClientSecretsName + "-??????",
-                    resource_base + estConfig.Properties.estMtlsClientPfxSecretName + "-??????"
-                ],
-            });
-            ld_truststore.role.addToPrincipalPolicy(createSecretsPolicyStatement);
-
-            // Trigger the function during deployment
-            const lambdaTrigger = new cdk.triggers.Trigger(this, "TruststoreTrigger", {
-                handler: ld_truststore.lambda,
-                timeout: cdk.Duration.seconds(55),
-                invocationType: cdk.triggers.InvocationType.REQUEST_RESPONSE
-            });
-
-            lambdaTrigger.executeAfter(this.truststoreBucket)
-        }
-        else {
+        const existing_truststore = Boolean(estConfig.DeploymentOptions.mTlsTruststoreCertificatesChainFile)
+        if (existing_truststore) {
             // User provided truststore certificates chain
             const full_path = path.parse(path.resolve(estConfig.DeploymentOptions.mTlsTruststoreCertificatesChainFile))
+            const truststorePrefix = "truststore/"
             const deployment = new s3dep.BucketDeployment(this, "truststore_deployment", {
                 sources: [s3dep.Source.asset(full_path.dir, { exclude: ["**", "!" + full_path.base] })],
                 destinationBucket: this.truststoreBucket,
-                destinationKeyPrefix: "truststore/",
+                destinationKeyPrefix: truststorePrefix,
                 prune: false,
             });
-            this.truststorePemFile = "truststore/" + full_path.base
+            this.truststorePemFile = truststorePrefix + full_path.base
         }
+        else {
+            // Generate the server and client secrets
+            this.truststorePemFile = "truststore/est-mtls-truststore.pem";
+        }
+
+        const ld_truststore = new MakeLambda(this, "lambda_truststore",
+            {
+                encryptionKey: encryptionKey,
+                entry: "function/mtls_truststore",
+                layers: [estUtilsLambdaLayer],
+                environment: {
+                    LOG_LEVEL: "DEBUG",
+                    TRUSTSTORE_S3_KEY: this.truststorePemFile,
+                    SECRETS_PATH: truststoreSecretsPath,
+                    BUCKET: this.truststoreBucket.bucketName,
+                    DOMAIN: estConfig.Properties.apiCustomDomainName,
+                    CA_SECRETS_NAME: estConfig.Properties.estMtlsCaSecretsName,
+                    CA_CERT_VALIDITY:estConfig.Properties.estMtlsCaCertValidity.toString(),
+                    CLIENT_SECRETS_NAME: estConfig.Properties.estMtlsClientSecretsName,
+                    CLIENT_PFX_SECRET_NAME: estConfig.Properties.estMtlsClientPfxSecretName,
+                    CLIENT_CERT_VALIDITY: estConfig.Properties.estMtlsClientCertValidity.toString(),
+                    KMS_KEY_ARN: secretsEncryptionKey.keyArn,
+                    GENERATE_TRUSTSTORE: (!existing_truststore).toString(),
+                },
+                timeout: cdk.Duration.seconds(50),
+            });
+        this.truststoreBucket.grantReadWrite(ld_truststore.role)
+        secretsEncryptionKey.grantEncryptDecrypt(ld_truststore.role)
+
+        // Grant create, read and write for the two secrets to the Lambda function
+        const resource_base = `arn:aws:secretsmanager:${cdk.Stack.of(this).region}:${cdk.Stack.of(this).account}:secret:`
+        const createSecretsPolicyStatement = new cdk.aws_iam.PolicyStatement({
+            effect: cdk.aws_iam.Effect.ALLOW,
+            actions: [
+                "secretsmanager:CreateSecret",
+                "secretsmanager:GetSecretValue",
+                "secretsmanager:PutSecretValue",
+            ],
+            resources: [
+                resource_base + estConfig.Properties.estMtlsCaSecretsName + "-??????",
+                resource_base + estConfig.Properties.estMtlsClientSecretsName + "-??????",
+                resource_base + estConfig.Properties.estMtlsClientPfxSecretName + "-??????"
+            ],
+        });
+        ld_truststore.role.addToPrincipalPolicy(createSecretsPolicyStatement);
+
+        // Trigger the function during deployment
+        const lambdaTrigger = new cdk.triggers.Trigger(this, "TruststoreTrigger", {
+            handler: ld_truststore.lambda,
+            timeout: cdk.Duration.seconds(55),
+            invocationType: cdk.triggers.InvocationType.REQUEST_RESPONSE
+        });
+
+        lambdaTrigger.executeAfter(this.truststoreBucket)
 
         new cdk.CfnOutput(this, "TruststoreBucket", {
         exportName: "EST-Server-truststore-bucket",
