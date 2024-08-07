@@ -38,22 +38,37 @@ export class ApiBase extends Construct {
             removalPolicy: cdk.RemovalPolicy.DESTROY,
         });
 
+        // The custom domain name is created with Level 1 construct because the property ownershipVerificationCertificateArn
+        // is not supported by the ResApi construct and is required when using an external CA
+        let verifCertArn:string|undefined = undefined
+        if (props.estConfig.Properties.apiOwnershipVerificationCertificateArn) {
+            verifCertArn = props.estConfig.Properties.apiOwnershipVerificationCertificateArn
+        }
+
+        const apiDomainName = new cdk.aws_apigateway.CfnDomainName(this,
+            "apiDomainName" + id,
+            {
+            domainName: props.estConfig.Properties.apiCustomDomainName,
+            regionalCertificateArn: props.estConfig.Properties.apiCertificateArn,
+            endpointConfiguration: {
+                types: ['REGIONAL'],
+            },
+            securityPolicy: cdk.aws_apigateway.SecurityPolicy.TLS_1_2, //required for mTLS
+            mutualTlsAuthentication: {
+                truststoreUri: "s3://" + mtlsTruststore.truststoreBucket.bucketName + "/" + mtlsTruststore.truststorePemFile,
+            },
+            ownershipVerificationCertificateArn: verifCertArn
+        });
+        apiDomainName.node.addDependency(mtlsTruststore)
+
+        const stageName: string = "prod"
+
         this.api = new cdk.aws_apigateway.RestApi(this, "est-api" + id, {
             restApiName: "EST-Server",
             description: "API for EST Server for AWS IoT",
             cloudWatchRole: true,
-            domainName: {
-                domainName: props.estConfig.Properties.apiCustomDomainName,
-                securityPolicy: cdk.aws_apigateway.SecurityPolicy.TLS_1_2, //required for mTLS
-                certificate: cdk.aws_certificatemanager.Certificate.fromCertificateArn(this, "domainCert",
-                    props.estConfig.Properties.apiCertificateArn),
-                mtls: {
-                    bucket: mtlsTruststore.truststoreBucket,
-                    key: mtlsTruststore.truststorePemFile,
-                }
-            },
             deployOptions: {
-                stageName: "prod",
+                stageName: stageName,
                 description: "Production stage of the EST Server REST API",
                 // Throttle the API to limit DDoS risk
                 // Low limit is acceptable because device provisioning is slow
@@ -85,6 +100,15 @@ export class ApiBase extends Construct {
         });
 
         this.api.node.addDependency(mtlsTruststore)
+
+        const apiMapping = new cdk.aws_apigateway.CfnBasePathMapping(this,
+            "apiMapping" + id,
+            {
+                domainName: props.estConfig.Properties.apiCustomDomainName,
+                restApiId: this.api.restApiId,
+                stage: stageName,});
+        apiMapping.addDependency(apiDomainName)
+        apiMapping.node.addDependency(this.api)
 
         //Add WAF in front of the API with the managed common rule set
         const waf = new cdk.aws_wafv2.CfnWebACL(this, "est-api-waf" + id, {

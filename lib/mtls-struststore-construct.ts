@@ -139,5 +139,6 @@ export class MtlsTruststore extends Construct {
         key: "ESTServerTruststorePemFile",
         value: this.truststorePemFile,
     });
+
     }
 }
