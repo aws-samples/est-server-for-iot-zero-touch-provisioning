@@ -155,6 +155,8 @@ def lambda_handler(event, context):
             # Store the values
             update_secret(CA_CERT_SECRET_NAME, cert_value)
             register_ca_once(cert_value, PROV_TEMPLATE_NAME)
+            if key_value is None:
+                key_value = "NONE"
             update_secret(CA_KEY_SECRET_NAME, key_value)
 
         # Stay secure - do not expose secrets
