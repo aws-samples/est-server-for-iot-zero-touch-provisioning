@@ -47,11 +47,10 @@ export class MtlsTruststore extends Construct {
 
         // Bucket for the truststore
         this.truststoreBucket = new cdk.aws_s3.Bucket(this, truststoreBucketName, {
-            //TODO: enable KMS encryption to check if API Gateway can still access the truststore
             versioned: true,
-            // encryption: cdk.aws_s3.BucketEncryption.KMS,
-            // encryptionKey: encryptionKey,
-            // bucketKeyEnabled: true,
+            encryption: cdk.aws_s3.BucketEncryption.KMS,
+            encryptionKey: encryptionKey,
+            bucketKeyEnabled: true,
             publicReadAccess: false,
             blockPublicAccess: cdk.aws_s3.BlockPublicAccess.BLOCK_ALL,
             objectOwnership: cdk.aws_s3.ObjectOwnership.BUCKET_OWNER_PREFERRED,

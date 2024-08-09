@@ -56,10 +56,9 @@ export class MakeLambda extends Construct {
         encryptionKey.grantEncryptDecrypt(this.role);
 
         // And the Lambda
-        // TODO: move to python12 when layer build works in this version
         this.lambda = new python.PythonFunction(this, "ld_" + id, {
             entry: entry,
-            runtime: cdk.aws_lambda.Runtime.PYTHON_3_11,
+            runtime: cdk.aws_lambda.Runtime.PYTHON_3_12,
             handler: "lambda_handler",
             index: "lambda.py",
             layers: layers,

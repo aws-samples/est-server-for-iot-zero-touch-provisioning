@@ -119,7 +119,6 @@ export class IotRootCa  extends Construct {
         this.iotCoreCaKeySecret = cdk.aws_secretsmanager.Secret.fromSecretNameV2(this, "IoTCoreKeySecret",
             estConfig.Properties.iotCoreEstCaKeySecretName)
 
-
         NagSuppressions.addResourceSuppressions(
             this.iotCoreCaCertSecret,
             [

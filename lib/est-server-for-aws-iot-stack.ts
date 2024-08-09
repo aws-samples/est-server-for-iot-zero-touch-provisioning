@@ -28,11 +28,10 @@ export class EstServerForAwsIotStack extends cdk.Stack {
         const accessLogsBucket = common.accessLogsS3Bucket;
 
         // Create the Lambda layers containing reusable functions
-        // TODO: move to python12 when layer build works in this version
         const CommonLambdaLayer = new python.PythonLayerVersion(this, "est-layer-utils" + id, {
             layerVersionName: "est-layer-utils",
             entry: "layer/utils/",
-            compatibleRuntimes: [cdk.aws_lambda.Runtime.PYTHON_3_11],
+            compatibleRuntimes: [cdk.aws_lambda.Runtime.PYTHON_3_12],
             description: "Utils for the EST Server",
             removalPolicy: cdk.RemovalPolicy.DESTROY,
             compatibleArchitectures: [cdk.aws_lambda.Architecture.X86_64]
