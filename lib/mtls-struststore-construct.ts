@@ -79,6 +79,7 @@ export class MtlsTruststore extends Construct {
 
         const ld_truststore = new MakeLambda(this, "lambda_truststore",
             {
+                description: "EST Server CDK Triggered Lambda to build a Truststore for APIGW mTLS",
                 encryptionKey: encryptionKey,
                 entry: "function/mtls_truststore",
                 layers: [estUtilsLambdaLayer],
@@ -126,6 +127,37 @@ export class MtlsTruststore extends Construct {
         });
 
         lambdaTrigger.executeAfter(this.truststoreBucket)
+
+
+
+        // Utility function to sign client CSR for mTLS - this lambda must be executed manually
+        const ld_mtls_csr_sign = new MakeLambda(this, "mtls_csr_sign",
+            {
+                description: "EST Server utility to sign client CSR for APIGW mTLS",
+                encryptionKey: encryptionKey,
+                entry: "function/sign_mtls_client_cert",
+                layers: [estUtilsLambdaLayer],
+                environment: {
+                    LOG_LEVEL: "DEBUG",
+                    CA_SECRETS_NAME: estConfig.Properties.estMtlsCaSecretsName,
+                    CLIENT_CERT_VALIDITY: estConfig.Properties.estMtlsClientCertValidity.toString(),
+                    TRUSTSTORE_BUCKET: this.truststoreBucket.bucketName,
+                },
+                timeout: cdk.Duration.seconds(50),
+            });
+        this.truststoreBucket.grantReadWrite(ld_mtls_csr_sign.role)
+        secretsEncryptionKey.grantDecrypt(ld_mtls_csr_sign.role)
+        // Give read access to the necessary Secret
+        const readSecretPolicyStatement = new cdk.aws_iam.PolicyStatement({
+            effect: cdk.aws_iam.Effect.ALLOW,
+            actions: [
+                "secretsmanager:GetSecretValue",
+            ],
+            resources: [
+                resource_base + estConfig.Properties.estMtlsCaSecretsName + "-??????",
+            ],
+        });
+        ld_mtls_csr_sign.role.addToPrincipalPolicy(readSecretPolicyStatement);
 
         new cdk.CfnOutput(this, "TruststoreBucket", {
         exportName: "EST-Server-truststore-bucket",
