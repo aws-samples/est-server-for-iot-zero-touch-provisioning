@@ -98,13 +98,13 @@ def success200_cert(cert: str):
     }
 
 
-def no_content204():
+def no_content204(msg=""):
     return {
         "statusCode": 204,
         "headers": {
             "Content-Type": "application/json"
         },
-        "body": ""
+        "body": msg
     }
 
 

@@ -56,6 +56,7 @@ export class IotRootCa  extends Construct {
             !populateExternalCa.registerExternalCa;
         const ld_iot_ca = new MakeLambda(this, "lambda_iot_ca",
         {
+            description: "EST Server CDK Triggered Lambda for IoT Core CA Certificate Management",
             encryptionKey: encryptionKey,
             entry: "function/make_iotcore_ca",
             layers: [estUtilsLambdaLayer],
@@ -118,7 +119,6 @@ export class IotRootCa  extends Construct {
             estConfig.Properties.iotCoreEstCaCertSecretName)
         this.iotCoreCaKeySecret = cdk.aws_secretsmanager.Secret.fromSecretNameV2(this, "IoTCoreKeySecret",
             estConfig.Properties.iotCoreEstCaKeySecretName)
-
 
         NagSuppressions.addResourceSuppressions(
             this.iotCoreCaCertSecret,
