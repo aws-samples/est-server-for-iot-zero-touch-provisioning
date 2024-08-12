@@ -59,7 +59,12 @@ def lambda_handler(event, context):
 
     csr = get_csr(bucket=input_bucket, key=csr_s3_key)
 
-    ca_secrets = json.loads(cmn.get_secret_value(secret_id=CA_SECRETS_NAME))
+    secret = cmn.get_secret_value(secret_id=CA_SECRETS_NAME)
+    if secret is None:
+        msg = "Secrets {} not found. Cannot sign the CSR.".format(CA_SECRETS_NAME)
+        cmn.logger.warning(msg)
+        return cmn.no_content204(msg)
+    ca_secrets = json.loads(secret)
     if SCR_CA_KEY not in ca_secrets or SCR_KEY_KEY not in ca_secrets:
         raise Exception("{} or {} not found in the CA secrets".format(SCR_CA_KEY, SCR_KEY_KEY))
     ca_key_str = ca_secrets[SCR_KEY_KEY]
