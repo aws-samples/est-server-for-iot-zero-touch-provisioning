@@ -32,7 +32,7 @@ export class PopulateExternalIotCertificate extends Construct {
         // Create S3 Bucket for "provisioning" of the IoT CA Certificate
         const bucketNamePrefix = "est-iot-provisioning"
         this.iotProvisioningBucket = new cdk.aws_s3.Bucket(this, bucketNamePrefix, {
-            versioned: true,
+            versioned: false,
             encryption: cdk.aws_s3.BucketEncryption.KMS,
             encryptionKey: encryptionKey,
             publicReadAccess: false,
