@@ -115,7 +115,7 @@ def lambda_handler(event, context):
             "Key doesn't exist. Empty Secret created: {}".format(response))
 
     # Register external CA certificate if allowed and provided
-    # This might register and additional certificate in IoT Core if the pem file has changed
+    # This might register an additional certificate in IoT Core if the pem file has changed
     if REGISTER_CA is True and EXTERNAL_CA_CERT_S3_KEY != "":
 
         cert_value = None
