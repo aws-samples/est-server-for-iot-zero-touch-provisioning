@@ -123,8 +123,9 @@ cdk deploy --context configFile=my_custom_location/my_custom_config.yaml --all
 You can find more commands nd options for `cdk` here: https://docs.aws.amazon.com/cdk/v2/guide/ref-cli-cmd.html
 
 ## Establishing the bases
-This project is all about certificates and it can get confusing. So we need to define a terminology to limit the 
+This project is all about certificates and this can get confusing. So we need to define a terminology to limit the 
 confusion. There are three groups of certificates involved:
+
 ### Everything related to the IoT Operations
 We are here looking at IoT Core and the IoT Devices identification. The main purpose of an EST Server is "delivering
 certificates to IoT devices" so they can start doing their job securely. When we will discuss this part of the project 
@@ -132,11 +133,13 @@ we will refer to it with the word "device" and/or "IoT".
 To operate securely IoT Core needs Certificate Authority (CA) registered. Then the IoT device can send a 
 Certificate Signing Request (CSR) to receive in return a *Device Certificate* signed by the CA that was registered in IoT Core.
 Note that it doesn't mean that the signature is effectively done by IoT Core. We'll get back to this later.
+
 ### A server or an API must be secure
 This EST Server must also be secure, so it needs to have a Certificate of its own, which matches the domain name of 
 the server. This "custom domain name" and certificate are installed in API Gateway so the clients can authenticate the
 EST Server (the API in fact, since there is no webserver) and establish a trusted secure connection via TLS. 
 Here we are referring to the "EST Server Certificate".
+
 ### The users of the EST Server also need to be identified
 Finally, the [[RFC7030](https://datatracker.ietf.org/doc/html/rfc7030)] specification for EST also requires that the
 clients be identified via mutual TLS (mTLS). It means that the client must present a certificate that is known by the
@@ -160,7 +163,7 @@ renewal.
 Signing a CSR for an IoT Device can be done locally on AWS or by an external PKI. This project allows both:
 * If you are comfortable using a local PKI, it will create a self-signed Root CA and will use it to sign the Device
  Certificates
-* If you prefer to use an external CA, you will provide the CA Certificate of your PKI and it will be registered for you 
+* If you prefer to use an external CA, you will provide the CA Certificate of your PKI, and it will be registered  
 in IoT Core. You will have to implement the interface to your external PKI (more on this later).
 
 As we saw earlier, mTLS requires a Truststore and matching client certificates. You also have two options here:
@@ -171,9 +174,16 @@ by your own PKI. In this case you just have to provide the Truststore as
 mTLS client certificates (sign a CSR) with the serf-signed root CA that was created for you. 
 Signing an mTLS CSR is a manual action and a Lambda function is provided for this.
 
-* Just in Time Provisioning (JITP): 
+* Just in Time Provisioning (JITP): JITP is a feature of AWS IoT Core allowing a new device to be automatically
+provisioned at first connection. When valid certificate, signed by the CA registered in IoT Core, is presented by a new 
+device, IoT automatically provisions the device according to pre-configured provisioning template and IoT policy. More
+details are available [here](https://docs.aws.amazon.com/iot/latest/developerguide/jit-provisioning.html). By setting the
+configuration parameter `configureJITP` to `true` JITP will be configured in the account when the CDK is deployed.
 
 All the above feature options are controlled by a few configuration parameters of the configuration file you'll have to 
 create. This is the single point of configuration, except if you need to use an external PKI for signing the IoT Device CSR.
 
 ### Architecture
+This CDK project deploys serverless AWS resources, limiting the run costs of the service and reducing the efforts to keep
+it secure and up-to-date. The Lambda functions are writen in Python 3.
+
