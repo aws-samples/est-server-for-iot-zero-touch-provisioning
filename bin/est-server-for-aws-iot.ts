@@ -26,18 +26,18 @@ cdk.Tags.of(estStack).add("APPLICATION", "EST Server for AWS IoT")
 // Use cdk-nag to inspect the stack for common problems
 cdk.Aspects.of(app).add(new AwsSolutionsChecks( {verbose: true} ));
 
-// TODO: Remove when python3.12 builds the Layer without failure
+//TODO: Try to find what is causing CDK-NAG errors with BucketDeployment
 NagSuppressions.addStackSuppressions(
     estStack,
     [
         {
             id: "AwsSolutions-L1",
-            reason: "Building layer fails on python3.12",
+            reason: "Custom resources trigger or bucket deployment does not use latest Lambda runtime but can't suppress locally. " +
+                "Other Lambda use Python 3.12",
         }
     ],
     true
 )
-//TODO: Find what is causing CDK-NAG errors with BucketDeployment
 NagSuppressions.addStackSuppressions(
     estStack, [
         {

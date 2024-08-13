@@ -73,11 +73,11 @@ def secret_exists(secret_name):
         secret = secret_client.get_secret_value(SecretId=secret_name)
         if "SecretString" in secret:
             if len(secret["SecretString"]) > 10:
-                cmn.logger.info("Secret already exists and has a value. No modification done.")
+                cmn.logger.info("Secret {} already exists.".format(secret_name))
                 return True
         if "SecretBinary" in secret:
             if len(secret["SecretBinary"]) > 10:
-                cmn.logger.info("Secret already exists and has a value. No modification done.")
+                cmn.logger.info("Secret {} already exists.".format(secret_name))
                 return True
     except secret_client.exceptions.ResourceNotFoundException:
         return False
@@ -148,11 +148,10 @@ def lambda_handler(event, context):
             for content in response['Contents']:
                 if content.get('Key') == TRUSTSTORE:
                     cmn.logger.info("The Truststore chain {} already exists. Delete it from S3 and clear the Secrets"
-                                    "if you want to generate it. No modification done.".format(TRUSTSTORE))
+                                    "if you want to re-generate it. No modification done.".format(TRUSTSTORE))
                     return
 
     # Create the Root CA
-    # Fix me
     root_cert, root_key = cmn.create_self_signed_root_ca(attributes=attributes_root, validity_years=CA_CERT_VALIDITY)
 
     # The CSR
@@ -170,7 +169,7 @@ def lambda_handler(event, context):
             x509.NameAttribute(NameOID.ORGANIZATION_NAME, attributes_client["O"]),
             x509.NameAttribute(NameOID.ORGANIZATIONAL_UNIT_NAME, attributes_client["OU"]),
         ])).add_extension(
-        # Describe what sites we want this certificate for.
+        # Describe what FQDN we want this certificate for.
         x509.SubjectAlternativeName([x509.DNSName(DOMAIN)]),
         critical=False,
     ).sign(client_key, hashes.SHA256())

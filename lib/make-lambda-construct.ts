@@ -9,6 +9,7 @@ export interface MakeLambdaProps {
     layers:  cdk.aws_lambda.ILayerVersion[];
     environment: { [key: string]: string };
     timeout: cdk.Duration;
+    description: string;
 }
 
 export class MakeLambda extends Construct {
@@ -22,6 +23,7 @@ export class MakeLambda extends Construct {
         const layers = props.layers;
         const environment = props.environment;
         const timeout = props.timeout;
+        const description = props.description;
 
         // Create a Log group
         const logGroup = new cdk.aws_logs.LogGroup(this, id + "_lg", {
@@ -56,10 +58,10 @@ export class MakeLambda extends Construct {
         encryptionKey.grantEncryptDecrypt(this.role);
 
         // And the Lambda
-        // TODO: move to python12 when layer build works in this version
         this.lambda = new python.PythonFunction(this, "ld_" + id, {
+            description: description,
             entry: entry,
-            runtime: cdk.aws_lambda.Runtime.PYTHON_3_11,
+            runtime: cdk.aws_lambda.Runtime.PYTHON_3_12,
             handler: "lambda_handler",
             index: "lambda.py",
             layers: layers,

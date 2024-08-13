@@ -28,11 +28,10 @@ export class EstServerForAwsIotStack extends cdk.Stack {
         const accessLogsBucket = common.accessLogsS3Bucket;
 
         // Create the Lambda layers containing reusable functions
-        // TODO: move to python12 when layer build works in this version
         const CommonLambdaLayer = new python.PythonLayerVersion(this, "est-layer-utils" + id, {
             layerVersionName: "est-layer-utils",
             entry: "layer/utils/",
-            compatibleRuntimes: [cdk.aws_lambda.Runtime.PYTHON_3_11],
+            compatibleRuntimes: [cdk.aws_lambda.Runtime.PYTHON_3_12],
             description: "Utils for the EST Server",
             removalPolicy: cdk.RemovalPolicy.DESTROY,
             compatibleArchitectures: [cdk.aws_lambda.Architecture.X86_64]
@@ -50,6 +49,7 @@ export class EstServerForAwsIotStack extends cdk.Stack {
         // Lambda functions responding to the API endpoints
         const ld_cacerts = new MakeLambda(this, "lambda_cacerts",
             {
+                description: "EST Server Lambda for /cacerts endpoint",
                 encryptionKey: encryptionKey,
                 entry: "function/cacerts/",
                 layers: [CommonLambdaLayer],
@@ -65,6 +65,7 @@ export class EstServerForAwsIotStack extends cdk.Stack {
 
         const ld_csrattrs = new MakeLambda(this, "lambda_csrattrs",
             {
+                description: "EST Server Lambda for /csrattrs endpoint",
                 encryptionKey: encryptionKey,
                 entry: "function/csrattrs/",
                 layers: [CommonLambdaLayer],
@@ -75,6 +76,7 @@ export class EstServerForAwsIotStack extends cdk.Stack {
 
         const ld_serverkeygen = new MakeLambda(this, "lambda_serverkeygen",
             {
+                description: "EST Server Lambda for /serverkeygen endpoint",
                 encryptionKey: encryptionKey,
                 entry: "function/serverkeygen/",
                 layers: [CommonLambdaLayer],
@@ -85,6 +87,7 @@ export class EstServerForAwsIotStack extends cdk.Stack {
 
         const ld_simpleenroll = new MakeLambda(this, "lambda_simpleenroll",
             {
+                description: "EST Server Lambda for /simpleenroll endpoint",
                 encryptionKey: encryptionKey,
                 entry: "function/simpleenroll/",
                 layers: [CommonLambdaLayer],
@@ -102,6 +105,7 @@ export class EstServerForAwsIotStack extends cdk.Stack {
 
        const ld_simplereenroll = new MakeLambda(this, "lambda_simplereenroll",
             {
+                description: "EST Server Lambda for /simpleREenroll endpoint",
                 encryptionKey: encryptionKey,
                 entry: "function/simplereenroll/",
                 layers: [CommonLambdaLayer],

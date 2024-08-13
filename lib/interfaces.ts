@@ -5,6 +5,7 @@ export interface EstConfig {
         // EST Service
         apiCustomDomainName: NonNullable<string>
         apiCertificateArn: NonNullable<string>
+        apiOwnershipVerificationCertificateArn: NonNullable<string>
         // EST mTLS server side
         estMtlsCaSecretsName: NonNullable<string>
         estMtlsCaCertValidity: NonNullable<number>
