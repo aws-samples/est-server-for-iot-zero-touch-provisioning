@@ -69,7 +69,7 @@ export class ProvisioningTemplate extends Construct {
             provTemplateArn = provTemplate.attrTemplateArn
         }
         else {
-            provTemplateArn = "Skipped"
+            provTemplateArn = "JITP_is_disabled"
         }
         new cdk.CfnOutput(this, "Provisioning Template ARN", {
             exportName: "EST-Server-Provisioning-Template-ARN",

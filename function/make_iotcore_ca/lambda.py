@@ -85,6 +85,7 @@ def lambda_handler(event, context):
     init_cert_value = "NULL"
     init_key_value = "NULL"
 
+    # Create secrets with default value if they don't exist
     try:
         cert_value = secret_client.get_secret_value(SecretId=CA_CERT_SECRET_NAME)['SecretString']
     except secret_client.exceptions.ResourceNotFoundException:
@@ -113,7 +114,7 @@ def lambda_handler(event, context):
 
     # Register external CA certificate if allowed and provided
     # This might register an additional certificate in IoT Core if the pem file has changed
-    if REGISTER_CA is True and EXTERNAL_CA_CERT_S3_KEY != "":
+    if EXTERNAL_CA_CERT_S3_KEY != "":
 
         cert_value = None
         key_value = None
@@ -151,12 +152,13 @@ def lambda_handler(event, context):
         if do_update is True:
             # Store the values
             update_secret(CA_CERT_SECRET_NAME, cert_value)
-            register_ca_once(cert_value, PROV_TEMPLATE_NAME)
             if key_value is None:
                 key_value = "NONE"
             update_secret(CA_KEY_SECRET_NAME, key_value)
+            if REGISTER_CA is True:
+                register_ca_once(cert_value, PROV_TEMPLATE_NAME)
 
-        # Stay secure - do not expose secrets
+            # Stay secure - do not expose secrets: clear objects from S3
         if EXTERNAL_CA_PKEY_S3_KEY != "":
             try:
                 response = s3_client.delete_object(
@@ -190,5 +192,5 @@ def lambda_handler(event, context):
     update_secret(CA_CERT_SECRET_NAME, cert_pem)
     update_secret(CA_KEY_SECRET_NAME, cmn.private_key_to_pem(key))
 
-    if REGISTER_CA is True or FORCE is True:
+    if REGISTER_CA is True:
         register_ca_once(cert_pem, PROV_TEMPLATE_NAME)

@@ -125,25 +125,22 @@ def lambda_handler(event, context):
     """
     This function creates the secrets, self-signed certificate and client certificate in the Truststore
     for a quick mTLS configuration of API Gateway. If the target truststore pem file already exists, the
-    function will not make any change to the bucket.
-    The tests on event==None are here to allow easy local testing of keys and certs generation
+    function will not make any change.
     :param event:
     :param context:
     :return:
     """
-    # Check if an object exists in the S3 bucket
-    cmn.logger.debug("Event: {}".format(event))
-    if event is not None and FORCE is not True:
+    if FORCE is not True:
         if secret_exists(CA_SECRETS_NAME) or secret_exists(CLIENT_SECRETS_NAME) or secret_exists(CLIENT_PFX_SECRET_NAME):
             cmn.logger.warn("Secrets already exist. You must clear all of them if you want to update the Truststore "
                             "(write a string of less than 10 characters. No modification done.")
             return
 
-        response = s3_client.list_objects(Bucket=BUCKET, Prefix=TRUSTSTORE)
         if not GENERATE_TRUSTSTORE:
-            cmn.logger.warn("Truststore generation is disabled. No action (Secrets will not be updated).")
+            cmn.logger.warn("Truststore generation is disabled. No action (Secrets will not be created/updated).")
             return
 
+        response = s3_client.list_objects(Bucket=BUCKET, Prefix=TRUSTSTORE)
         if 'Contents' in response:
             for content in response['Contents']:
                 if content.get('Key') == TRUSTSTORE:
@@ -151,38 +148,39 @@ def lambda_handler(event, context):
                                     "if you want to re-generate it. No modification done.".format(TRUSTSTORE))
                     return
 
-    # Create the Root CA
-    root_cert, root_key = cmn.create_self_signed_root_ca(attributes=attributes_root, validity_years=CA_CERT_VALIDITY)
+    if GENERATE_TRUSTSTORE is True:
+        # Create the Root CA
+        root_cert, root_key = cmn.create_self_signed_root_ca(attributes=attributes_root, validity_years=CA_CERT_VALIDITY)
 
-    # The CSR
-    client_key = rsa.generate_private_key(
-        public_exponent=65537,
-        key_size=4096,
-    )
+        # The CSR
+        client_key = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=4096,
+        )
 
-    csr = x509.CertificateSigningRequestBuilder().subject_name(
-        x509.Name([
-            x509.NameAttribute(NameOID.COMMON_NAME, attributes_client["CN"]),
-            x509.NameAttribute(NameOID.COUNTRY_NAME, attributes_client["C"]),
-            x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, attributes_client["ST"]),
-            x509.NameAttribute(NameOID.LOCALITY_NAME, attributes_client["L"]),
-            x509.NameAttribute(NameOID.ORGANIZATION_NAME, attributes_client["O"]),
-            x509.NameAttribute(NameOID.ORGANIZATIONAL_UNIT_NAME, attributes_client["OU"]),
-        ])).add_extension(
-        # Describe what FQDN we want this certificate for.
-        x509.SubjectAlternativeName([x509.DNSName(DOMAIN)]),
-        critical=False,
-    ).sign(client_key, hashes.SHA256())
+        csr = x509.CertificateSigningRequestBuilder().subject_name(
+            x509.Name([
+                x509.NameAttribute(NameOID.COMMON_NAME, attributes_client["CN"]),
+                x509.NameAttribute(NameOID.COUNTRY_NAME, attributes_client["C"]),
+                x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, attributes_client["ST"]),
+                x509.NameAttribute(NameOID.LOCALITY_NAME, attributes_client["L"]),
+                x509.NameAttribute(NameOID.ORGANIZATION_NAME, attributes_client["O"]),
+                x509.NameAttribute(NameOID.ORGANIZATIONAL_UNIT_NAME, attributes_client["OU"]),
+            ])).add_extension(
+            # Describe what FQDN we want this certificate for.
+            x509.SubjectAlternativeName([x509.DNSName(DOMAIN)]),
+            critical=False,
+        ).sign(client_key, hashes.SHA256())
 
-    # Then Sign the CSR with the CA
-    client_cert = cmn.sign_csr_with_own_ca(csr, root_cert, root_key, validity_years=CLIENT_CERT_VALIDITY)
+        # Then Sign the CSR with the CA
+        client_cert = cmn.sign_csr_with_own_ca(csr, root_cert, root_key, validity_years=CLIENT_CERT_VALIDITY)
 
-    # Generate a pkcs12 bundle
-    client_p12 = (pkcs12.serialize_key_and_certificates(
-        b"est-client.pfx", client_key, client_cert, None, serialization.NoEncryption()
-    ))
+        # Generate a pkcs12 bundle
+        client_p12 = (pkcs12.serialize_key_and_certificates(
+            b"est-client.pfx", client_key, client_cert, None, serialization.NoEncryption()
+        ))
 
-    if event is not None:
+
         # Store everything in Secrets Manager
         ca_secrets = {
             "certificate": cmn.cert_to_pem(root_cert),
@@ -248,57 +246,5 @@ def lambda_handler(event, context):
             Key=s3key
         )
         cmn.logger.info("Stored client p12 bundle on S3 in {}".format(s3key))
-
     else:
-        write_to_disk(root_key, root_cert, client_key, client_cert, client_p12)
-
-
-def write_to_disk(root_key, root_ca_cert, client_key, client_cert, client_p12):
-    """
-    Convenience for testing locally.
-    :param root_key:
-    :param root_ca_cert:
-    :param client_key:
-    :param client_cert:
-    :param client_p12:
-    :return:
-    """
-    # Save keys to files - for test only
-    with open("./est-RootCA-private.key", "wb") as f:
-        f.write(root_key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.TraditionalOpenSSL,
-            encryption_algorithm=serialization.NoEncryption(),
-        ))
-
-    with open("./est-RootCA-public.key", "wb") as f:
-        f.write(root_key.public_key().public_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo,
-        ))
-
-    with open("./est-RootCA-cert.pem", "wb") as f:
-        f.write(root_ca_cert.public_bytes(serialization.Encoding.PEM))
-
-    with open("./est-client-private.key", "wb") as f:
-        f.write(client_key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.TraditionalOpenSSL,
-            encryption_algorithm=serialization.NoEncryption(),
-        ))
-
-    with open("./est-client-public.key", "wb") as f:
-        f.write(client_key.public_key().public_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo,
-        ))
-
-    with open("./est-client-cert.pem", "wb") as f:
-        f.write(client_cert.public_bytes(serialization.Encoding.PEM))
-
-    with open("./est-client.pfx", "wb") as f:
-        f.write(client_p12)
-
-
-if __name__ == "__main__":
-    lambda_handler(None, None)
+        cmn.logger.warn("FORCE is True but GENERATE_TRUSTSTORE is False. No action taken by precaution.")

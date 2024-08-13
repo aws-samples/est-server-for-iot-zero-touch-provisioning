@@ -315,6 +315,15 @@ def get_secret_value(secret_id):
         return None
 
 
+def is_key(key):
+    """
+    Check if key has the signature of a key. Covers for Key in PKCS#1 and PKCS#8.
+    :param key: a string
+    :return: True if the string looks like a key
+    """
+    return key.startswith("-----BEGIN RSA PRIVATE KEY-----") or key.startswith("-----BEGIN PRIVATE KEY-----")
+
+
 def sign_thing_csr(csr, csr_data, ca_cert_secret_arn, ca_key_secret_arn):
     """
     Sign a new CSR with own or external CA.
@@ -327,11 +336,13 @@ def sign_thing_csr(csr, csr_data, ca_cert_secret_arn, ca_key_secret_arn):
     """
     cert_str = get_secret_value(ca_cert_secret_arn)
     key_str = get_secret_value(ca_key_secret_arn)
+    if isinstance(key_str, bytes):
+        key_str = key_str.decode('utf-8')
     if key_str is None or cert_str is None:
         # Something bad happened
         logger.critical("Exception when reading secrets")
         return None
-    elif key_str == "":
+    elif not is_key(key_str):
         # We don't have the key to sign the CSR, so we delegate to an external signing service
         logger.info("Delegating signature of the CSR")
         return sign_externally(csr, csr_data)  # Must be implemented by end user
