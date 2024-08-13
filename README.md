@@ -1,6 +1,6 @@
 # Welcome to the EST Server for AWS IoT
 
-This CDK project deploys an Enrollment over Secure Transport (EST) server, which is a way for an IoT device to obtain
+This CDK application deploys an Enrollment over Secure Transport (EST) server, which is a way for an IoT device to obtain
 a certificate without exposing any secret and without human intervention. It makes Zero-Trust and Zero-Touch possible.
 
 The EST Server has been developed to be compliant with [[RFC7030](https://datatracker.ietf.org/doc/html/rfc7030)] and it
@@ -87,7 +87,7 @@ It is the same for `function/simplereenroll/lambda.py` with `pre_reenroll` and `
 The first time a device obtains a certificates and connects to IoT Core, it will be enrolled automatically by JITP.
 Later on, when the device renews its certificate it will try to connect to IoT Core with this new certificate but would
 fail if the new certificate has not been associated with the matching IoT Thing.
-This project makes an attempt to find a matching IoT Thing and attach the new certificate to it. Of course, if this
+This application makes an attempt to find a matching IoT Thing and attach the new certificate to it. Of course, if this
 EST server is not hosted in the same account and the IoT Things, it will fail (without raising an Exception). You will
 then have to figure out how to do that!
 
@@ -112,7 +112,9 @@ pip3 install -r requirements.txt
 # If new account, you need to bootstrap the CDK (there is no risk to run it regularly...)
 cdk bootstrap
 ```
+
 ### Deployment commands
+
 ```bash
 cdk deploy --all
 ```
@@ -123,20 +125,23 @@ cdk deploy --context configFile=my_custom_location/my_custom_config.yaml --all
 You can find more commands nd options for `cdk` here: https://docs.aws.amazon.com/cdk/v2/guide/ref-cli-cmd.html
 
 ## Establishing the bases
-This project is all about certificates and it can get confusing. So we need to define a terminology to limit the 
+This application is all about certificates and this can get confusing. So we need to define a terminology to limit the 
 confusion. There are three groups of certificates involved:
+
 ### Everything related to the IoT Operations
 We are here looking at IoT Core and the IoT Devices identification. The main purpose of an EST Server is "delivering
-certificates to IoT devices" so they can start doing their job securely. When we will discuss this part of the project 
+certificates to IoT devices" so they can start doing their job securely. When we will discuss this part of the application 
 we will refer to it with the word "device" and/or "IoT". 
 To operate securely IoT Core needs Certificate Authority (CA) registered. Then the IoT device can send a 
 Certificate Signing Request (CSR) to receive in return a *Device Certificate* signed by the CA that was registered in IoT Core.
 Note that it doesn't mean that the signature is effectively done by IoT Core. We'll get back to this later.
+
 ### A server or an API must be secure
 This EST Server must also be secure, so it needs to have a Certificate of its own, which matches the domain name of 
 the server. This "custom domain name" and certificate are installed in API Gateway so the clients can authenticate the
 EST Server (the API in fact, since there is no webserver) and establish a trusted secure connection via TLS. 
 Here we are referring to the "EST Server Certificate".
+
 ### The users of the EST Server also need to be identified
 Finally, the [[RFC7030](https://datatracker.ietf.org/doc/html/rfc7030)] specification for EST also requires that the
 clients be identified via mutual TLS (mTLS). It means that the client must present a certificate that is known by the
@@ -149,7 +154,7 @@ which we will refer to as the *Client Certificate*.
 We are here looking at the calls to the EST API endpoints by the client. 
 And this is not to be confused with the *Device Certificate* used for the IoT operations (interaction with IoT Core).
 
-## Understanding the project features and architecture
+## Understanding the application features and architecture
 
 ### Features
 The main goal of this code sample is to easily deploy an EST Server, a service which is capable of:
@@ -157,10 +162,10 @@ The main goal of this code sample is to easily deploy an EST Server, a service w
 * Signing a CSR and returning the corresponding Certificate to an IoT Device for a first enrollment and a certificate 
 renewal.
 
-Signing a CSR for an IoT Device can be done locally on AWS or by an external PKI. This project allows both:
+Signing a CSR for an IoT Device can be done locally on AWS or by an external PKI. This application allows both:
 * If you are comfortable using a local PKI, it will create a self-signed Root CA and will use it to sign the Device
  Certificates
-* If you prefer to use an external CA, you will provide the CA Certificate of your PKI and it will be registered for you 
+* If you prefer to use an external CA, you will provide the CA Certificate of your PKI, and it will be registered  
 in IoT Core. You will have to implement the interface to your external PKI (more on this later).
 
 As we saw earlier, mTLS requires a Truststore and matching client certificates. You also have two options here:
@@ -171,9 +176,134 @@ by your own PKI. In this case you just have to provide the Truststore as
 mTLS client certificates (sign a CSR) with the serf-signed root CA that was created for you. 
 Signing an mTLS CSR is a manual action and a Lambda function is provided for this.
 
-* Just in Time Provisioning (JITP): 
+* Just in Time Provisioning (JITP): JITP is a feature of AWS IoT Core allowing a new device to be automatically
+provisioned at first connection. When valid certificate, signed by the CA registered in IoT Core, is presented by a new 
+device, IoT automatically provisions the device according to pre-configured provisioning template and IoT policy. More
+details are available [here](https://docs.aws.amazon.com/iot/latest/developerguide/jit-provisioning.html). By setting the
+configuration parameter `configureJITP` to `true` JITP will be configured in the account when the CDK is deployed.
 
 All the above feature options are controlled by a few configuration parameters of the configuration file you'll have to 
 create. This is the single point of configuration, except if you need to use an external PKI for signing the IoT Device CSR.
 
 ### Architecture
+This CDK application deploys serverless AWS resources, limiting the run costs of the service and reducing the efforts to keep
+it secure and up-to-date. The Lambda functions are writen in Python 3.
+![Architecture diagram](docs/architecture.jpg "EST Server architecture diagram")
+
+### Security & Compliance
+The entire application is encrypted by a custom key stored in KMS.
+The "secrets" (keys and certificates, although these certificates are not strictly secret) are stored in ASM and 
+encrypted with a different custom KMS key, except for the API custom domain names certificates provided by ACM.
+
+API Gateway is fronted by AWS Application Firewall with the AWS Managed Common Rules Set (can be changed in
+[API base construct](lib/api-base-construct.ts)). The execution API endpoint is disabled, so the only access is via the 
+custom domain name and mTLS.
+
+All Lambda functions and API Gateway log in CloudWatch. All S3 buckets have access logs pushed to an S3 bucket.
+
+IAM roles use policies following the least privilege approach wherever possible (some deployment constructs create
+their own and sometimes use wildcards).
+
+The CDK code uses [cdk-nag library](https://github.com/cdklabs/cdk-nag) to enforce best practices.
+
+All the deployed resources are tagged with `APPLICATION=EST Server for AWS IoT`.
+
+## Application configuration & associated features / behaviour
+The configuration odf the application before deployment is done via a single YAML configuration file `config/config.yaml`
+by default. You can specify a different configuration file as explains in [the section 'Deployment commands'](#deployment commands).
+The configuration file is plit in two sections:
+* Properties: contains parameters that do not influence the resources that will be deployed.
+* DeploymentOptions: depending on the values provided (or not) in this section, some resources will be deployed or not.
+
+### Properties
+In most cases you only need to provide the API Gateway custom domain name, the ACM ARN of the Certificate for this 
+custom domain name and, if applicable, the ARN for the ownership verification certificate.
+If you plan to let the deployment configure JITP, you will also have to provide the path to the provisioning template
+and IoT policy, or modify the files provided in the config folder.
+The other parameters are convenience:
+* Validity duration of generated certificates can be adjusted according to your policies
+* Names of important resources can be changed. This is particularly useful for the secrets in ACM which can only be deleted
+after a minimum of 7 days and would block a re-deployment that affects them. Changing the secret names allows to not 
+wait for a new deployment.
+
+### Deployment options
+The parameters in this section will affect what resources are deployed and what happens during the deployment.
+
+#### `mTlsTruststoreCertificatesChainFile`
+[mTLS in API Gateway](https://docs.aws.amazon.com/apigateway/latest/developerguide/rest-api-mutual-tls.html) requires a 
+Truststore document to be placed in S3 and associated in your custom domain name. If you provide a local path to an 
+existing truststore document, the deployment will copy it to S3 and used it for configuring API Gateway.
+
+If you do not provide the Truststore (use empty string ""), the deployment will:
+* Create a self-signed CA certificate for mTLS
+* Create a Truststore, place it in S3 and configure API Gateway accordingly
+* Store the CA Certificate and Private Key in ASM
+* Create a sample client certificate, key and pfx files and store them in S3 (same bucket as the RTruststore 
+under client/) as well as in ASM. Note that this is provided as a quick way to test the application and should not be
+used for production due to security reasons.
+
+A special Lambda function is provided for signing client certificates for mTLS. This, of course only works if the
+CA certificate has been generated during deployment (the private key is known). 
+* Usage: configure the environment variable "TRUSTSTORE_BUCKET" to point to an S3 bucket (pre-configured to the Truststore 
+bucket) and make sure the Lambda function has read/write access.
+* Place the CSR in the S3 bucket. You can use a folder.
+* Configure a test event with a JSON event payload containing the key "csr_s3_key" with a value matching the S3 object 
+key of the CSR in S3
+* Run the Lambda function manually. It will write the signed certificate at the same location, with the extension `.crt`.
+
+#### IoT Core CA parameters
+Three parameters allow controlling how IoT CA will be configured: `iotCoreCaCertificatePath`, `iotCoreCaPrivateKeyPath`, 
+`generateIotCaCertificate`.
+
+`iotCoreCaCertificatePath` is the path to the CA certificate IoT Core will use to validate the device certificates. If
+you provide a value here, the certificate will be registered in the curren account IoT Core service and stored in ASM.
+
+If you don't want to register it in IoT Core (e.g. the EST Serer is running in a different account than your IoT), do not
+provide any value. The ASM secret will still be created with the dummy value "NULL" but **YOU WILL HAVE TO UPDATE IT
+WITH THE CERTIFICATE CONTENT AFTER DEPLOYMENT** otherwise the API endpoint /cacerts will fail. 
+
+`iotCoreCaPrivateKeyPath` is optional and it is not recommended to use it. It is provided as a convenience or testing
+device certificates signature.
+
+`generateIotCaCertificate`, if `true` will generate a self-signed CA and private key, store them in ASM and register the 
+CA in IoT Core. This parameter is ignored if you provided a value to `iotCoreCaCertificatePath`. This is the recommended 
+way if you want to handle device certificates signing directly in this application.
+
+Signing CSR sent by devices (via the edpoints /simpleenroll and /simplereenroll) can be done by the application or by
+an external PKI depending on the configuration above:
+* If a valid CA certificate **AND** the private key are present in ASM, the signing will be done locally by the Lambda
+function called by the endpoint.
+* If the Private key is missing from ASM, signing must be delegated to an external PKI. This is detected by the Lambda
+* function which then calls the python function `sign_externally` located in the Lambda layer `est_common.py`.
+**You MUST then implement this function**.
+
+#### Just in Time Provisioning
+JITP configuration is enabled by the parameter `configureJITP`. It uses the provisioning template and IoT policy 
+as specified in the corresponding parameters located in the section `Properties`. Two samples are provided in the `config`
+folder. You should verify and potentially customise them before deploying. 
+
+JITP, like IoT Core CA can only be configured in the current account.
+
+## Additional features
+
+### Reenrollment
+When calling the endpoint `/simplerenroll` an IoT devices attempts to renew a soon-expiring certificate. Once the new
+CSR is signed, the device will try to connect with this new certificate. But this connection will fail if the 
+new certificate has not been registered in IoT Core for this exact IoT Thing.
+
+The `simplereenroll` Lambda function attempts to register the new device certificate in IoT Core. The Thing Name is 
+extracted from the CSR Common Name (CN) and if a matching Thing is found in IoT Core, the new certificate is 
+associated with it.
+
+**You will have to implement a similar mechanism if your IoT devices live in a different account than where the 
+EST Server is deployed**
+
+### Pre / Post (re)enrollment hooks
+Both the `simplenroll` and `simplereenroll` Lambda functions have pre-enrollment and post-enrollment hooks available.
+These hooks allow you to implement additional functionality before and after the CSR signing action.
+
+### Tenant
+The `/enroll` and `/reenroll` API endpoints support a query string parameter called 'tenant-id' which can be used, for example, 
+to pass additional information useful when the EST server is a common service for several IoT Core instances (accounts or regions), 
+or in a multi-tenant context. This parameter is currently not used by the core functionality but can be found in the
+`event` object in the corresponding Lambda functions.
