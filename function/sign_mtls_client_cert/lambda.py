@@ -68,7 +68,9 @@ def lambda_handler(event, context):
     if SCR_CA_KEY not in ca_secrets or SCR_KEY_KEY not in ca_secrets:
         raise Exception("{} or {} not found in the CA secrets".format(SCR_CA_KEY, SCR_KEY_KEY))
     ca_key_str = ca_secrets[SCR_KEY_KEY]
-    if not ca_key_str.startswith("-----BEGIN RSA PRIVATE KEY-----"):
+    if (not ca_key_str.startswith("-----BEGIN RSA PRIVATE KEY-----")
+            and not ca_key_str.startswith("-----BEGIN PRIVATE KEY-----")):
+        # Covers for Key in PKCS#1 and PKCS#8
         msg = "The private key for the mTLS CA is not known. Cannot sign the client CSR."
         cmn.logger.warning(msg)
         return cmn.no_content204(msg)
