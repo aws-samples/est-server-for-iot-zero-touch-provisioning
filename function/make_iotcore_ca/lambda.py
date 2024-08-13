@@ -85,9 +85,6 @@ def lambda_handler(event, context):
     init_cert_value = "NULL"
     init_key_value = "NULL"
 
-    cmn.logger.debug("EXTERNAL_CA_CERT_S3_KEY = {}".format(EXTERNAL_CA_CERT_S3_KEY))
-    cmn.logger.debug("EXTERNAL_CA_PKEY_S3_KEY = {}".format(EXTERNAL_CA_PKEY_S3_KEY))
-
     try:
         cert_value = secret_client.get_secret_value(SecretId=CA_CERT_SECRET_NAME)['SecretString']
     except secret_client.exceptions.ResourceNotFoundException:
