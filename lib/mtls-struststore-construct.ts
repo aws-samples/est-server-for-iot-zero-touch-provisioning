@@ -131,7 +131,7 @@ export class MtlsTruststore extends Construct {
 
 
         // Utility function to sign client CSR for mTLS - this lambda must be executed manually
-        const ld_mtls_csr_sign = new MakeLambda(this, "mtls_csr_sign",
+        const ld_mtls_csr_sign = new MakeLambda(this, "lambda_sign_mtls_csr",
             {
                 description: "EST Server utility to sign client CSR for APIGW mTLS",
                 encryptionKey: encryptionKey,
