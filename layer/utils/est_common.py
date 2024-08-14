@@ -196,12 +196,10 @@ def validate_csr(csr: str):
             "serialNumber": sn
         }
         logger.info("CSR validation data: {}".format(d))
-        if not cn.startswith(sn):
-            raise Exception("Common name and serial number mismatch")
         return d, req
     except Exception as e:
         logger.error(f"Error validating CSR: {e}")
-        return {}
+        return None, None
 
 
 def create_self_signed_root_ca(attributes: dict, validity_years: int):

@@ -1,2 +1,7 @@
 boto3 == 1.34.*
 cryptography == 43.*
+# For running tests only
+awsiotsdk
+requests
+pyyaml
+pip-system-certs # Required on Mas OS and venv to access the system Root Certificates
