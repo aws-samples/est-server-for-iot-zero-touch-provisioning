@@ -35,8 +35,8 @@ export class ProvisioningTemplate extends Construct {
             // Load the IoT Template from the json file
             let template: provisioningTemplate = JSON.parse(fs.readFileSync(path.resolve(estConfig.Properties.iotTemplatePath), 'utf-8'));
             // Add the reference to the IoT Policy if nothing is already in the template
-            if (template.Resources.policy.Properties.PolicyDocument == "") {
-                template.Resources.policy.Properties.PolicyDocument = iotPolicy.policyName as string
+            if (template.Resources.policy.Properties.PolicyName == "") {
+                template.Resources.policy.Properties.PolicyName = iotPolicy.policyName as string
             }
 
             // Create the Role for automatic devices provisioning

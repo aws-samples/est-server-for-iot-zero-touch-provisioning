@@ -1,0 +1,3 @@
+cdk_config_file: "../config/config.yaml"
+mtls_cert_pem: null
+mtls_key_pem: null
