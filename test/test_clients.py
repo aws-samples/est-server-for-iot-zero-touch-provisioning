@@ -16,7 +16,8 @@
 
 import base64
 import requests
-import awsiot
+from awsiot import mqtt_connection_builder
+from awscrt.mqtt import QoS
 from cryptography import x509
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.x509.oid import NameOID
@@ -26,6 +27,7 @@ from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 import base64 as b64
 import os
+import datetime
 
 
 class EstClient(object):
@@ -77,6 +79,28 @@ class EstClient(object):
         with open(self.mtls_key_path, 'w') as f:
             f.write(mtls_key_pem)
         self.iot_ca_cert_path = self.files_base_path + "/iot_ca_cert.crt"
+
+    @property
+    def iot_key_bytes(self) -> bytes:
+        return self.iot_device_key.private_bytes(encoding=serialization.Encoding.PEM,
+                                                 format=serialization.PrivateFormat.PKCS8,
+                                                 encryption_algorithm=serialization.NoEncryption())
+
+    @property
+    def iot_csr_bytes(self) -> bytes:
+        return self.iot_device_csr.public_bytes(encoding=serialization.Encoding.PEM)
+
+    @property
+    def iot_cert_init_bytes(self) -> bytes:
+        return self.iot_device_cert_init.public_bytes(encoding=serialization.Encoding.PEM)
+
+    @property
+    def iot_cert_renewed_bytes(self) -> bytes:
+        return self.iot_device_cert_renewed.public_bytes(encoding=serialization.Encoding.PEM)
+
+    @property
+    def iot_ca_cert_bytes(self) -> bytes:
+        return self.iot_ca_cert.public_bytes(encoding=serialization.Encoding.PEM)
 
     def get_iot_ca_cert(self, headers=None):
         """
@@ -221,3 +245,162 @@ class EstClient(object):
             "content": r.content
         }
 
+    def self_initialise(self):
+        """
+        Performs the tasks necessary to collect all the data for an IoT Device
+        :return: nothing
+        """
+        self.get_iot_ca_cert()
+        self.simpleenroll()
+        return True
+
+
+class IotClient(object):
+    """
+    Implementation of an IoT Client
+    """
+
+    def __init__(self, thing_name: str, endpoint: str, port: int or None, est_client_kwargs: dict):
+        self.thing_name = thing_name
+        self.endpoint = endpoint
+        self.port = port
+        self.root_ca = None
+        self.certificate = None
+        self.private_key = None
+        self.connected = False
+        self.est_client = None
+        self.est_kwargs = est_client_kwargs
+        self.mqtt_connection = None
+        self.messages = {}
+
+    @property
+    def is_connected(self) -> bool:
+        return self.connected
+
+    def on_connection_interrupted(self, connection, callback_data):
+        print("Connection interrupted")
+        self.connected = False
+
+    def on_connection_resumed(self, connection, return_code, session_present, **kwargs):
+        print("Connection resumed")
+        self.connected = True
+
+    def on_connection_success(self, connection, callback_data):
+        print("Connection success")
+        self.connected = True
+
+    def on_connection_failure(self, connection, callback_data):
+        print("Connection failure")
+        self.connected = False
+
+    def on_connection_closed(self, connection, callback_data):
+        print("Connection closed")
+        self.connected = False
+
+    def est_bootstrap(self, save=False):
+        self.est_client = EstClient(**self.est_kwargs)
+        if self.est_client.self_initialise() is True:
+            self.root_ca = self.est_client.iot_ca_cert_bytes
+            self.certificate = self.est_client.iot_cert_init_bytes
+            self.private_key = self.est_client.iot_key_bytes
+            if save:
+                save_to_disk("./temp/iot_root_ca.pem", self.root_ca.decode('utf-8'))
+                save_to_disk("temp/iot_device.crt", self.certificate.decode('utf-8'))
+                save_to_disk("./temp/iot_device.key", self.private_key.decode('utf-8'))
+            return True
+        else:
+            return False
+
+    def init_connection(self):
+        """
+        Connects to AWS IoT Core
+        :return: nothing
+        """
+        if not self.est_client:
+            if self.est_bootstrap(save=True) is False:
+                raise Exception("Failed to bootstrap EST Client")
+
+        if self.connected:
+            self.disconnect()
+
+        self.mqtt_connection = mqtt_connection_builder.mtls_from_bytes(
+            client_id=self.thing_name,
+            endpoint=self.endpoint,
+            cert_bytes=self.certificate,
+            pri_key_bytes=self.private_key,
+            on_connection_interrupted=self.on_connection_interrupted,
+            on_connection_resumed=self.on_connection_resumed,
+            on_connection_success=self.on_connection_success,
+            on_connection_failure=self.on_connection_failure,
+            on_connection_closed=self.on_connection_closed,
+            clean_session=True,
+            port=self.port,
+            ca_bytes=self.root_ca
+        )
+        # Sets the callback for all messages
+        self.mqtt_connection.on_message(self.new_message)
+
+    def connect(self):
+        """
+        Connects to AWS IoT Core
+        :return: nothing
+        """
+        if self.connected:
+            print("Already connected")
+            return
+        if not self.mqtt_connection:
+            self.init_connection()
+        print("Connecting...")
+        connect_future = self.mqtt_connection.connect()
+        connect_future.result()  # Raises an exception if connection fails
+
+
+    def disconnect(self):
+        """
+        Disconnects from AWS IoT Core
+        :return: nothing
+        """
+        print("Disconnecting current connection")
+        if self.mqtt_connection:  # Just a safeguard
+            self.mqtt_connection.disconnect()
+        self.connected = False
+
+    def new_message(self, topic, payload, dup, qos, retain, **kwargs):
+        print("Received message from topic '{}': {}".format(topic, payload))
+        if topic not in self.messages:
+            self.messages[topic] = []
+        self.messages[topic].append({
+            datetime.datetime.now().isoformat(): {
+                "topic": topic,
+                "payload": payload,
+                "dup": dup,
+                "qos": qos,
+                "retain": retain,
+                "kwargs": kwargs
+            }
+        }
+        )
+
+    def subscribe(self, topic: str, qos=QoS.AT_LEAST_ONCE):
+        future, _ = self.mqtt_connection.subscribe(topic=topic, qos=qos)
+        result = future.result()
+        print("Subscribed:".format(result))
+        return True
+
+    def publish(self, topic, payload, qos=QoS.AT_LEAST_ONCE, retain=False):
+        """
+        """
+        future, _ = self.mqtt_connection.publish(
+            topic=topic,
+            payload=payload,
+            qos=qos,
+            retain=retain
+        )
+        result = future.result()
+        print("Published:".format(result))
+        return True
+
+
+def save_to_disk(filename, data):
+    with open(filename, "w") as f:
+        f.write(data)

@@ -82,7 +82,7 @@ export interface provisioningTemplate {
       "policy": {
          "Type": string,
          "Properties": {
-            "PolicyDocument": string
+            "PolicyName": string
          }
       }
     }

@@ -15,9 +15,9 @@
 
 import os
 import est_common as cmn
+from urllib import request
 
-
-CA_CERT_SECRET_ARN = os.environ['CA_CERT_SECRET_ARN']
+AMAZON_IOT_CA_URL = os.environ['AMAZON_IOT_CA_URL']
 
 
 def lambda_handler(event, context):
@@ -33,9 +33,10 @@ def lambda_handler(event, context):
     if "*/*" not in accept and "application/pkcs7-mime" not in accept:
         cmn.logger.warn("Unsupported accept header: {}".format(accept))
         return cmn.error400("Unsupported accept header")
-    cert = cmn.get_secret_value(CA_CERT_SECRET_ARN)
+    req = request.urlopen(AMAZON_IOT_CA_URL)
+    cert = req.read().decode('utf-8')
     if cert:
         return cmn.success200_cert(cert)
     else:
-        cmn.logger.error("Failed to retrieve certificate ARN: {}".format(CA_CERT_SECRET_ARN))
+        cmn.logger.error("Failed to retrieve certificate ARN: {}".format(AMAZON_IOT_CA_URL))
         return cmn.error500("Failed to retrieve the certificate")
