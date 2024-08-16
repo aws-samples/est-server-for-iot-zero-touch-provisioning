@@ -19,6 +19,7 @@ import est_common as cmn
 
 CA_CERT_SECRET_ARN = os.environ['CA_CERT_SECRET_ARN']
 CA_KEY_SECRET_ARN = os.environ['CA_KEY_SECRET_ARN']
+IOT_POLICY_NAME = os.environ['IOT_POLICY_NAME']
 
 
 def pre_reenroll(event):
@@ -48,8 +49,7 @@ def reenroll(csr, csr_data):
     pem_cert = cmn.sign_thing_csr(csr=csr, csr_data=csr_data, ca_cert_secret_arn=CA_CERT_SECRET_ARN,
                                   ca_key_secret_arn=CA_KEY_SECRET_ARN)
     if pem_cert:
-        registration = cmn.register_certificate_with_iot_core(pem_cert, csr_data['thingName'])
-
+        registration = cmn.register_certificate_with_iot_core(pem_cert, csr_data['thingName'], IOT_POLICY_NAME)
     return pem_cert
 
 

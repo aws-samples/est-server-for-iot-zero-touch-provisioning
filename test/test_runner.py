@@ -1,5 +1,7 @@
 import unittest
 import boto3
+import botocore.exceptions
+from awscrt import exceptions
 from test_clients import EstClient, IotClient
 import yaml
 from uuid import uuid4
@@ -12,6 +14,7 @@ TEST_CFG_FILE = "test_config.yaml"
 
 class Init(object):
     def __init__(self, **kwargs):
+        print("Initialising the Test environment")
         with open(TEST_CFG_FILE, "r") as f:
             self.test_config = yaml.safe_load(f)
         with open(self.test_config['cdk_config_file'], "r") as f:
@@ -24,6 +27,8 @@ class Init(object):
         self.api_cert = cert['Certificate']
         self.mtls_cert_pem = self.test_config['mtls_cert_pem']
         self.mtls_key_pem = self.test_config['mtls_key_pem']
+        self.topic = self.test_config['mqtt_topic']
+        self.save_creds = self.test_config['save_iot_creds_to_disk']
         if not self.test_config['mtls_cert_pem'] or not self.test_config['mtls_key_pem']:
             print("mTLS credentials not provided, attempting to read from AWS Cloud ASM")
             self.asm_client = boto3.client('secretsmanager')
@@ -36,7 +41,7 @@ class Init(object):
             self.mtls_key_pem = self.mtls_secrets['key']
 
 
-class Test01EstServer(object): #unittest.TestCase):
+class Test01EstServer(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
@@ -74,7 +79,7 @@ class Test01EstServer(object): #unittest.TestCase):
         :return:
         """
         r = self.est_client.get_iot_ca_cert()
-        self.assertEqual(r["status_code"], 200, "Status code 200 expected from /cacerts")
+        self.assertEqual(200, r["status_code"], "Status code 200 expected from /cacerts")
         self.assertIn("-----BEGIN CERTIFICATE-----", r['crt_pem'], "PEM format expected")
         self.assertEqual("application/pkcs7-mime", r['headers']['content-type'],
                          "PKCS7 MIME content-type header expected")
@@ -132,14 +137,14 @@ class Test02IotClient(unittest.TestCase):
         cls.setup_done = False
         cls.init = Init()
         cls.api_domain = cls.init.api_domain
-        # Fix Me:
-        cls.thing_name = "thing05" # "estThing-{}".format(uuid4())
+        cls.thing_name = "estThing-{}".format(uuid4())
+        cls.topic = cls.init.topic.replace("<thing_name>", cls.thing_name)
+        print("IoT Thing name under test: {}".format(cls.thing_name))
         cls.est_api_domain = cls.init.api_domain,
         cls.est_api_cert = cls.init.api_cert,
         cls.mtls_cert_pem = cls.init.mtls_cert_pem,
         cls.mtls_key_pem = cls.init.mtls_key_pem
-        cls.setup_done = True
-
+        cls.save_creds = cls.init.save_creds
         cls.b3client = boto3.client('iot')
         cls.endpoint = cls.b3client.describe_endpoint(endpointType='iot:Data-ATS')['endpointAddress']
         print("IoT Endpoint: {}".format(cls.endpoint))
@@ -150,37 +155,130 @@ class Test02IotClient(unittest.TestCase):
             mtls_cert_pem=cls.init.mtls_cert_pem,
             mtls_key_pem=cls.init.mtls_key_pem
         )
-
         cls.iot_client = IotClient(
             thing_name=cls.thing_name,
             endpoint=cls.endpoint,
             port=None,
-            est_client_kwargs=cls.est_client_kwargs
+            est_client_kwargs=cls.est_client_kwargs,
+            save_creds=cls.save_creds
         )
+        cls.setup_done = True
 
     @classmethod
     def tearDownClass(cls):
         cls.iot_client.disconnect()
+        delete_thing(cls.thing_name)
+
+    def assert_publish(self, topic, message):
+        print("Publishing to topic: {}".format(self.topic))
+        r = self.iot_client.publish(topic, message)
+        self.assertTrue(r, "Publishing to topic should be successful")
+        time.sleep(2)
+        print(self.iot_client.mqtt_messages)
+        self.assertIn(topic, self.iot_client.mqtt_messages, "Message should be received on topic")
+        received = self.iot_client.mqtt_messages[topic]
+        keys = sorted(list(received.keys()), reverse=True)
+        self.assertEqual(message, received[keys[0]]['payload'], "Message content should match")
+
+    def assert_subscribe(self, topic):
+        print("Subscribing to topic: {}".format(topic))
+        r = self.iot_client.subscribe(topic)
+        self.assertTrue(r, "Subscription to topic should be successful")
 
     def test_01(self):
-        try:
-            r = self.iot_client.connect()
-        except Exception as e:
-            print("Got exception on first connection attempt: {}".format(e))
-            print("Waiting a bit before checking result...")
-            time.sleep(10)
+        """
+        Test connection to IoT Core and JITP
+        """
+        self.assertRaises(exceptions.AwsCrtError, self.iot_client.connect)
+        print("Got exception on first connection attempt.")
+        print("Waiting a bit before second attempt...")
+        time.sleep(4)
         r = self.iot_client.connect()
+        time.sleep(2)
         self.assertTrue(self.iot_client.is_connected, "Connection to AWS IoT Core should be successful")
+
+    def test_02(self):
+        """
+        Test subscription to right topic
+        """
+        self.assert_subscribe(self.topic)
+
+    def test_03(self):
+        """
+        Assert publication
+        """
+        self.assert_publish(self.topic, "Hello from test case 03")
+
+    def test_04(self):
+        """
+        Connection with new certificate and key
+        """
+        old_cert = self.iot_client.certificate
+        old_key = self.iot_client.private_key
+        r = self.iot_client.renew_certificate(save=self.save_creds)
+        self.assertEqual(200, r.get('status_code'), "Certificate renewal should be successful")
+        self.assertTrue(self.iot_client.disconnect, "Disconnection from IoT Core should be successful")
+        new_cert = self.iot_client.certificate
+        new_key = self.iot_client.private_key
+        self.assertNotEqual(old_cert, new_cert, "Certificate should be different")
+        self.assertNotEqual(old_key, new_key, "Key should be different")
+        self.iot_client.init_connection()
+        self.iot_client.connect()
+        time.sleep(2)
+        self.assertTrue(self.iot_client.is_connected, "Connection to AWS IoT Core should be successful")
+
+    def test_05(self):
+        """
+        Assert subscription after certificate renewal
+        """
+        self.assert_subscribe(self.topic)
+
+    def test_06(self):
+        """
+        Assert publication after certificate renewal
+        """
+        self.assert_publish(self.topic, "Hello from test case 06")
+
+
+def delete_thing(thing_name):
+    """
+    Delete an IoT Thing and its certificates
+    :param thing_name: Thing name
+    :return: None
+    """
+    print("Deleting thing: {}".format(thing_name))
+    iot_client = boto3.client('iot')
+    sts_client = boto3.client('sts')
+    account_id = sts_client.get_caller_identity()["Account"]
+    region = iot_client.meta.region_name
+    try:
+        principals = iot_client.list_thing_principals(
+            thingName=thing_name
+        )
+    except botocore.exceptions.ClientError:
+        print("Thing {} not found".format(thing_name))
+        return
+
+    cert_finger_print = "arn:aws:iot:{}:{}:cert/".format(region, account_id)
+    certs = []
+    for principal in principals['principals']:
+        if principal.startswith(cert_finger_print):
+            certs.append(principal)
+    print("Found certificates: {}".format(certs))
+    for cert in certs:
+        cert_id = cert.split('/')[1]
+        policies = [p['policyName'] for p in iot_client.list_principal_policies(principal=cert)['policies']]
+        for policy in policies:
+            print("Detaching policies: {}".format(policies))
+            iot_client.detach_principal_policy(policyName=policy, principal=cert)
+        print("Deleting Certificate: {}".format(cert_id))
+        iot_client.detach_thing_principal(thingName=thing_name, principal=cert)
+        iot_client.update_certificate(certificateId=cert_id, newStatus='INACTIVE')
+        iot_client.delete_certificate(certificateId=cert_id, forceDelete=True)
+    iot_client.delete_thing(thingName=thing_name)
+    print("Thing {} deleted".format(thing_name))
 
 
 if __name__ == "__main__":
     unittest.main()
-    """
-    st = unittest.TestSuite()
-    loader = unittest.TestLoader()
-    suite = unittest.TestSuite()
-    # suite.addTests(loader.loadTestsFromTestCase(Test01EstServer))
-    suite.addTests(loader.loadTestsFromTestCase(Test02IotClient))
-    runner = unittest.TextTestRunner()
-    runner.run(suite)
-    """
+

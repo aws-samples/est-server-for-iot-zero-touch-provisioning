@@ -111,7 +111,8 @@ export class EstServerForAwsIotStack extends cdk.Stack {
                 environment: {
                     LOG_LEVEL: estConfig.Properties.lambdaLoggerLevel,
                     CA_CERT_SECRET_ARN: iot_ca.iotCoreCaCertSecret.secretArn,
-                    CA_KEY_SECRET_ARN: iot_ca.iotCoreCaKeySecret.secretArn
+                    CA_KEY_SECRET_ARN: iot_ca.iotCoreCaKeySecret.secretArn,
+                    IOT_POLICY_NAME: estConfig.Properties.iotPolicyName
                 },
                 timeout: cdk.Duration.seconds(10),
             }
@@ -127,6 +128,8 @@ export class EstServerForAwsIotStack extends cdk.Stack {
                 "iot:DescribeThing",
                 "iot:AttachThingPrincipal",
                 "iot:RegisterCertificate",
+                "iot:AttachPolicy",
+                "iot:ListCertificates",
             ],
             resources: ["*"],
         });

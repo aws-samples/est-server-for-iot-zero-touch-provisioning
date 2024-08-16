@@ -344,3 +344,21 @@ If you use an external Truststore certificate chain you can upload it to S3 and 
 If you want to completely re-generate a new set of self-signed certificates and keys you can run manually the Lambda 
 Trigger with the environment variable `FORCE` set to "true" (`GENERATE_TRUSTSTORE` must also be "true").
 Do not forget to remove this environment variable afterward.
+
+## Testing your deployment
+The test folder contains `test_runner.py` which you can run manually in your venv with:
+```bash
+python test_runner.py
+```
+The tests cover:
+1. EST Server endpoints
+2. IoT Device interactions with IoT Core using the EST server as source of credentials. This will work only if you have
+enabled JITP configuration.
+
+Configura of the test can be done via `test/test_config.yaml`.
+A temp folder will be created in your current folder and will.
+`test_clients.py` is used for the testes and is also a reference implementation of an EST client and an IoT Device 
+using EST for bootstrapping.
+
+Running the tests requires `Administrator` or `PowerUserAccess` privileges because it uses boto3 to access some 
+information on the AWS account.
