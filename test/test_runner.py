@@ -29,6 +29,7 @@ class Init(object):
         self.mtls_key_pem = self.test_config['mtls_key_pem']
         self.topic = self.test_config['mqtt_topic']
         self.save_creds = self.test_config['save_iot_creds_to_disk']
+        self.endpoint = self.test_config['iot_endpoint']
         if not self.test_config['mtls_cert_pem'] or not self.test_config['mtls_key_pem']:
             print("mTLS credentials not provided, attempting to read from AWS Cloud ASM")
             self.asm_client = boto3.client('secretsmanager')
@@ -146,8 +147,11 @@ class Test02IotClient(unittest.TestCase):
         cls.mtls_key_pem = cls.init.mtls_key_pem
         cls.save_creds = cls.init.save_creds
         cls.b3client = boto3.client('iot')
-        cls.endpoint = cls.b3client.describe_endpoint(endpointType='iot:Data-ATS')['endpointAddress']
-        print("IoT Endpoint: {}".format(cls.endpoint))
+        if cls.init.endpoint:
+            cls.endpoint = cls.init.endpoint
+        else:
+            cls.endpoint = cls.b3client.describe_endpoint(endpointType='iot:Data-ATS')['endpointAddress']
+        print("Using IoT Endpoint: {}".format(cls.endpoint))
         cls.est_client_kwargs = dict(
             thing_name=cls.thing_name,
             est_api_domain=cls.init.api_domain,

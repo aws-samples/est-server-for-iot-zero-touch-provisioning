@@ -353,12 +353,20 @@ python test_runner.py
 The tests cover:
 1. EST Server endpoints
 2. IoT Device interactions with IoT Core using the EST server as source of credentials. This will work only if you have
-enabled JITP configuration.
+enabled JITP configuration or if you have provisionned JITP in a target account and implemented the corresponding hooks
+for registering a certificate renewal (when calling `/simplereenroll` a device gets a new certificate which must be
+registered in IoT Core for the device to connect with the new certificate. JITP will not work for an existing Thing).
 
 Configura of the test can be done via `test/test_config.yaml`.
 A temp folder will be created in your current folder and will.
 `test_clients.py` is used for the testes and is also a reference implementation of an EST client and an IoT Device 
 using EST for bootstrapping.
 
+If you specify an IoT endpoint not located in the
+
 Running the tests requires `Administrator` or `PowerUserAccess` privileges because it uses boto3 to access some 
 information on the AWS account.
+
+The testing is "clean": the resources created in IoT Core (tThing and Certificates) are deleted at the end. The Thing Name
+uses a UUID to reduce risks of colliding with existing resources.
+

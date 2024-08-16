@@ -1,3 +1,5 @@
+# AWS IoT Core endpoind if not in same account as deployment. If in same account use ""
+iot_endpoint: ""
 # Path to the CDK config file to use
 cdk_config_file: "../config/config.yaml"
 # Path to mtls credentials if external
