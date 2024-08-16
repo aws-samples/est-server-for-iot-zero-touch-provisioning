@@ -46,7 +46,7 @@ iot_client = boto3.client('iot')
 s3_client = boto3.client('s3')
 
 
-def register_ca_once(cert, template_name):
+def register_ca_once(cert: str, template_name: str) -> None:
     if REGISTER_CA is True:  # One more safeguard
         for ca_cert in iot_client.list_ca_certificates(templateName=template_name)['certificates']:
             if iot_client.describe_ca_certificate(
@@ -66,7 +66,7 @@ def register_ca_once(cert, template_name):
         cmn.logger.info("REGISTER_CA is set to False. No action")
 
 
-def update_secret(secret_name, secret_value):
+def update_secret(secret_name: str, secret_value: str):
     secret_client.put_secret_value(
         SecretId=secret_name,
         SecretString=secret_value

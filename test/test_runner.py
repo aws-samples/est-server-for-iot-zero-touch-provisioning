@@ -25,8 +25,6 @@ class Init(object):
         cert = acm_client.get_certificate(
             CertificateArn=self.cdk_config['Properties']['apiCertificateArn'])
         self.api_cert = cert['Certificate']
-        self.mtls_cert_pem = self.test_config['mtls_cert_pem']
-        self.mtls_key_pem = self.test_config['mtls_key_pem']
         self.topic = self.test_config['mqtt_topic']
         self.save_creds = self.test_config['save_iot_creds_to_disk']
         self.endpoint = self.test_config['iot_endpoint']
@@ -40,6 +38,9 @@ class Init(object):
             self.mtls_secrets = json.loads(secrets['SecretString'])
             self.mtls_cert_pem = self.mtls_secrets['certificate']
             self.mtls_key_pem = self.mtls_secrets['key']
+        else:
+            self.mtls_cert_pem = open(self.test_config['mtls_cert_pem'], "r").read()
+            self.mtls_key_pem = open(self.test_config['mtls_key_pem'], "r").read()
 
 
 class Test01EstServer(unittest.TestCase):
@@ -173,7 +174,7 @@ class Test02IotClient(unittest.TestCase):
         cls.iot_client.disconnect()
         delete_thing(cls.thing_name)
 
-    def assert_publish(self, topic, message):
+    def assert_publish(self, topic: str, message: str):
         print("Publishing to topic: {}".format(self.topic))
         r = self.iot_client.publish(topic, message)
         self.assertTrue(r, "Publishing to topic should be successful")
@@ -184,7 +185,7 @@ class Test02IotClient(unittest.TestCase):
         keys = sorted(list(received.keys()), reverse=True)
         self.assertEqual(message, received[keys[0]]['payload'], "Message content should match")
 
-    def assert_subscribe(self, topic):
+    def assert_subscribe(self, topic: str):
         print("Subscribing to topic: {}".format(topic))
         r = self.iot_client.subscribe(topic)
         self.assertTrue(r, "Subscription to topic should be successful")
@@ -197,7 +198,7 @@ class Test02IotClient(unittest.TestCase):
         print("Got exception on first connection attempt.")
         print("Waiting a bit before second attempt...")
         time.sleep(4)
-        r = self.iot_client.connect()
+        self.iot_client.connect()
         time.sleep(2)
         self.assertTrue(self.iot_client.is_connected, "Connection to AWS IoT Core should be successful")
 
@@ -244,7 +245,7 @@ class Test02IotClient(unittest.TestCase):
         self.assert_publish(self.topic, "Hello from test case 06")
 
 
-def delete_thing(thing_name):
+def delete_thing(thing_name: str):
     """
     Delete an IoT Thing and its certificates
     :param thing_name: Thing name
