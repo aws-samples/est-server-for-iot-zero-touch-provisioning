@@ -63,7 +63,7 @@ s3_client = boto3.client('s3')
 secret_client = boto3.client('secretsmanager')
 
 
-def secret_exists(secret_name):
+def secret_exists(secret_name: str) -> bool:
     """
     Check if a secret exists in AWS Secrets Manager
     :param secret_name:
@@ -84,7 +84,7 @@ def secret_exists(secret_name):
     return False
 
 
-def create_or_update(secret_name, secret_value, descr):
+def create_or_update(secret_name: str, secret_value: str or bytes, descr: str) -> None:
     """
     Create, update a secret in AWS Secrets Manager
     :param secret_name:
@@ -131,7 +131,8 @@ def lambda_handler(event, context):
     :return:
     """
     if FORCE is not True:
-        if secret_exists(CA_SECRETS_NAME) or secret_exists(CLIENT_SECRETS_NAME) or secret_exists(CLIENT_PFX_SECRET_NAME):
+        if secret_exists(CA_SECRETS_NAME) or secret_exists(CLIENT_SECRETS_NAME) or secret_exists(
+                CLIENT_PFX_SECRET_NAME):
             cmn.logger.warn("Secrets already exist. You must clear all of them if you want to update the Truststore "
                             "(write a string of less than 10 characters. No modification done.")
             return
@@ -150,7 +151,8 @@ def lambda_handler(event, context):
 
     if GENERATE_TRUSTSTORE is True:
         # Create the Root CA
-        root_cert, root_key = cmn.create_self_signed_root_ca(attributes=attributes_root, validity_years=CA_CERT_VALIDITY)
+        root_cert, root_key = cmn.create_self_signed_root_ca(attributes=attributes_root,
+                                                             validity_years=CA_CERT_VALIDITY)
 
         # The CSR
         client_key = rsa.generate_private_key(
@@ -179,7 +181,6 @@ def lambda_handler(event, context):
         client_p12 = (pkcs12.serialize_key_and_certificates(
             b"est-client.pfx", client_key, client_cert, None, serialization.NoEncryption()
         ))
-
 
         # Store everything in Secrets Manager
         ca_secrets = {

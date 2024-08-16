@@ -26,7 +26,7 @@ from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
-from cryptography.hazmat.primitives.asymmetric import ec, rsa
+from cryptography.hazmat.primitives.asymmetric import rsa
 import datetime
 import time
 
@@ -43,7 +43,7 @@ iot_client = boto3.client('iot')
 secret_client = boto3.client('secretsmanager')
 
 
-def error400(msg):
+def error400(msg: str) -> dict:
     logger.error("400" + msg)
     return {
         "statusCode": 400,
@@ -54,7 +54,7 @@ def error400(msg):
     }
 
 
-def error500(msg):
+def error500(msg: str) -> dict:
     logger.error("500" + msg)
     return {
         "statusCode": 500,
@@ -65,7 +65,7 @@ def error500(msg):
     }
 
 
-def error501():
+def error501() -> dict:
     logger.error("501" + "Not Implemented")
     return {
         "statusCode": 501,
@@ -76,7 +76,7 @@ def error501():
     }
 
 
-def success200_json(body):
+def success200_json(body) -> dict:
     logger.info("200" + json.dumps(body))
     return {
         "statusCode": 200,
@@ -87,7 +87,7 @@ def success200_json(body):
     }
 
 
-def success200_cert(cert: str):
+def success200_cert(cert: str) -> dict:
     # Do not log anything for privacy & security reasons
     return {
         "statusCode": 200,
@@ -99,7 +99,7 @@ def success200_cert(cert: str):
     }
 
 
-def no_content204(msg=""):
+def no_content204(msg: str = "") -> dict:
     return {
         "statusCode": 204,
         "headers": {
@@ -109,7 +109,7 @@ def no_content204(msg=""):
     }
 
 
-def does_thing_exist(thing_name):
+def does_thing_exist(thing_name: str) -> bool:
     """
     Check if the thing exists
     :param thing_name: The name of the thing
@@ -127,7 +127,7 @@ def does_thing_exist(thing_name):
         raise
 
 
-def lower_case_keys(dictionary):
+def lower_case_keys(dictionary: dict) -> dict:
     """
     This function returns a new dictionary with all keys lowercased
     :param dictionary:
@@ -136,7 +136,7 @@ def lower_case_keys(dictionary):
     return {k.lower(): v for k, v in dictionary.items()}
 
 
-def validate_enroll_request(event):
+def validate_enroll_request(event) -> bool:
     """
     This function validates the request
     :param event:
@@ -159,7 +159,7 @@ def validate_enroll_request(event):
     return valid
 
 
-def extract_csr(event):
+def extract_csr(event) -> bytes or None:
     """
     This function extracts the csr from the event
     :param event:
@@ -174,7 +174,7 @@ def extract_csr(event):
         return csr
 
 
-def validate_csr(csr: str):
+def validate_csr(csr: str) -> tuple[dict or None, x509.base.CertificateSigningRequest or None]:
     """
     This function validates the CSR contains the right elements. it expects the Serial Number (SN) field to contain the
     device serial number and the Common Name (CN) filed to contain a combination of the AWS IoT Thing Serial Number and
@@ -203,7 +203,7 @@ def validate_csr(csr: str):
         return None, None
 
 
-def create_self_signed_root_ca(attributes: dict, validity_years: int):
+def create_self_signed_root_ca(attributes: dict, validity_years: int) -> tuple[x509.base.Certificate,  rsa.RSAPrivateKey]:
     """
     Generates a self-signed Root CA.
     :param attributes:
@@ -262,7 +262,8 @@ def create_self_signed_root_ca(attributes: dict, validity_years: int):
     return root_ca_cert, root_key
 
 
-def sign_csr_with_own_ca(csr, root_cert, root_key, validity_years=10):
+def sign_csr_with_own_ca(csr: x509.base.CertificateSigningRequest, root_cert: x509.base.Certificate,
+                         root_key: rsa.RSAPrivateKey, validity_years: int = 10):
     """
     Sign the CSR with the self-signed Root CA
     :param validity_years:
@@ -292,7 +293,7 @@ def sign_csr_with_own_ca(csr, root_cert, root_key, validity_years=10):
         return None
 
 
-def get_secret_value(secret_id):
+def get_secret_value(secret_id: str) -> str or bytes or None:
     """
     Return a secret as a string or bytes depending on the type of secret.
     See https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/secretsmanager/client/get_secret_value.html
@@ -314,7 +315,7 @@ def get_secret_value(secret_id):
         return None
 
 
-def is_key(key):
+def is_key(key: str) -> bool:
     """
     Check if key has the signature of a key. Covers for Key in PKCS#1 and PKCS#8.
     :param key: a string
@@ -323,7 +324,8 @@ def is_key(key):
     return key.startswith("-----BEGIN RSA PRIVATE KEY-----") or key.startswith("-----BEGIN PRIVATE KEY-----")
 
 
-def sign_thing_csr(csr, csr_data, ca_cert_secret_arn, ca_key_secret_arn):
+def sign_thing_csr(csr: x509.base.CertificateSigningRequest, csr_data: dict, ca_cert_secret_arn: str,
+                   ca_key_secret_arn: str) -> str or None:
     """
     Sign a new CSR with own or external CA.
     Important: for external CA you must implement the function `sign_externally`
@@ -331,7 +333,7 @@ def sign_thing_csr(csr, csr_data, ca_cert_secret_arn, ca_key_secret_arn):
     :param csr_data:
     :param ca_cert_secret_arn:
     :param ca_key_secret_arn:
-    :return string: The PAM formatted signed certificate
+    :return string: The PEM formatted signed certificate
     """
     cert_str = get_secret_value(ca_cert_secret_arn)
     key_str = get_secret_value(ca_key_secret_arn)
@@ -362,17 +364,12 @@ def sign_thing_csr(csr, csr_data, ca_cert_secret_arn, ca_key_secret_arn):
         return signed_cert.public_bytes(encoding=serialization.Encoding.PEM).decode("utf-8")
 
 
-def sign_externally(csr, csr_data):
+def sign_externally(csr: x509.base.CertificateSigningRequest, csr_data: dict) -> str:
     """
     This is an example of how you could sign the certificate externally using a PKI
     :param object csr: The Certificate Signing Request object
     :param dict csr_data: The parsed CSR data see below
-    :return dict: {
-        'certificateArn': 'string',
-        'certificateId': 'string',
-        'certificatePem': 'string',
-        'certificateRemoved': True|False
-        }:
+    :return: PEM Formatted Certificate
 
     csr_data = {
             "thingName": equals common name (CN) from CSR,
@@ -382,13 +379,13 @@ def sign_externally(csr, csr_data):
     raise NotImplementedError("Signing a CSR externally is not implemented")
 
 
-def register_certificate_with_iot_core(cert, thing_name, iot_policy_name):
+def register_certificate_with_iot_core(cert: str, thing_name: str, iot_policy_name: str) -> bool:
     """
     Register a certificate with AWS IoT Core
     :param iot_policy_name: the name of the IoT Policy to attach to the certificate
     :param str cert: PEM formatted Thing certificate
     :param str thing_name: The name of the IoT Thing
-    :return:
+    :return: True if success or False
     """
     if does_thing_exist(thing_name):
         registration = iot_client.register_certificate(
@@ -420,7 +417,7 @@ def register_certificate_with_iot_core(cert, thing_name, iot_policy_name):
     return False
 
 
-def cert_to_pem(cert):
+def cert_to_pem(cert: x509.base.Certificate) -> str:
     """
     Convert a certificate object to PEM format
     :param cert: cert object
@@ -429,7 +426,7 @@ def cert_to_pem(cert):
     return cert.public_bytes(encoding=serialization.Encoding.PEM).decode("utf-8")
 
 
-def private_key_to_pem(key):
+def private_key_to_pem(key: rsa.RSAPrivateKey) -> str:
     """
     Convert a private key object to PEM format
     :param key: key object

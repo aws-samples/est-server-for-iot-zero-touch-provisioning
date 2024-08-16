@@ -15,12 +15,13 @@
 
 import os
 import est_common as cmn
+from cryptography.x509.base import CertificateSigningRequest
 
 CA_CERT_SECRET_ARN = os.environ['CA_CERT_SECRET_ARN']
 CA_KEY_SECRET_ARN = os.environ['CA_KEY_SECRET_ARN']
 
 
-def pre_enroll(event):
+def pre_enroll(event) -> bool:
     """
     This is the first function that is called when enrollment happens before the certificate is generated
     :param event:
@@ -29,18 +30,18 @@ def pre_enroll(event):
     return True
 
 
-def enroll(csr, csr_data):
+def enroll(csr: CertificateSigningRequest, csr_data: dict) -> str or None:
     """
     This is the function that generates the certificate for an IoT device.
-    :param object csr: The Certificate Signing Request object
-    :param dict csr_data: The parsed CSR data
+    :param csr: The Certificate Signing Request object
+    :param csr_data: The parsed CSR data
     :return str: The PEM encoded signed certificate
     """
     return cmn.sign_thing_csr(csr=csr, csr_data=csr_data, ca_cert_secret_arn=CA_CERT_SECRET_ARN,
                               ca_key_secret_arn=CA_KEY_SECRET_ARN)
 
 
-def post_enroll(event):
+def post_enroll(event) -> bool:
     """
     This is the last function that is called when enrollment happens after the certificate is generated
     :param event:

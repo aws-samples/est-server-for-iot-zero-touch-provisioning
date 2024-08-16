@@ -18,6 +18,7 @@ import boto3
 import est_common as cmn
 from cryptography.x509 import load_pem_x509_csr
 from cryptography.x509 import load_pem_x509_certificate
+from cryptography.x509.base import CertificateSigningRequest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
@@ -31,7 +32,7 @@ SCR_CA_KEY = "certificate"
 SCR_KEY_KEY = "key"
 
 
-def get_csr(bucket, key):
+def get_csr(bucket: str, key: str) -> CertificateSigningRequest:
     response = s3_client.get_object(Bucket=bucket, Key=key)
 
     return load_pem_x509_csr(response['Body'].read())

@@ -40,12 +40,14 @@ class EstClient(object):
     /simplereenroll
     """
 
-    def __init__(self, thing_name, est_api_domain, est_api_cert, mtls_cert_pem, mtls_key_pem):
+    def __init__(self, thing_name: str, est_api_domain: str, est_api_cert: str, mtls_cert_pem: str, mtls_key_pem: str):
         """
-        Sets variables and creates a CSR for IoT device.
-        :param est_api_domain:
-        :param mtls_cert_pem:
-        :param mtls_key_pem:
+
+        :param thing_name: the Thing name
+        :param est_api_domain:  The EST API FQN
+        :param est_api_cert: The API CA Certificate (for TLS verification)
+        :param mtls_cert_pem: The mTLS client certificate in pem format
+        :param mtls_key_pem: The mTLS client private key in pem format
         """
         self.thing_name = thing_name
         self.est_uri = est_api_domain
@@ -97,7 +99,7 @@ class EstClient(object):
     def iot_ca_cert_bytes(self) -> bytes:
         return self.iot_ca_cert.public_bytes(encoding=serialization.Encoding.PEM)
 
-    def get_iot_ca_cert(self, headers=None):
+    def get_iot_ca_cert(self, headers: dict or None = None) -> dict:
         """
         Calls /cacerts endpoing and stores the certificate
         :returns: dict with response elements status_code, headers, content
@@ -120,7 +122,7 @@ class EstClient(object):
             "content": r.content
         }
 
-    def get_csr_attrs(self, headers=None):
+    def get_csr_attrs(self, headers: dict or None = None) -> dict:
         """
         Calls /csrattrs endpoint
         :returns: dict with response elements status_code, headers, content
@@ -138,7 +140,7 @@ class EstClient(object):
             "content": r.content
         }
 
-    def server_keygen(self, headers=None, content=""):
+    def server_keygen(self, headers: dict or None = None, content: str = "") -> dict:
         """
         Calls /serverkeygen endpoing
         :returns: dict with response elements status_code, headers, content
@@ -157,7 +159,7 @@ class EstClient(object):
             "content": r.content
         }
 
-    def make_csr(self, attributes=None):
+    def make_csr(self, attributes: dict or None = None) -> None:
         """
         Creates and stores a CSR for this IoT Device. If called several times, new CSR and key is generated and stored,
         overwriting the previous one.
@@ -193,10 +195,10 @@ class EstClient(object):
             critical=False,
         ).sign(self.iot_device_key, hashes.SHA256())
 
-    def _enrollment_call(self, headers, content, endpoint):
+    def _enrollment_call(self, headers: dict or None, content: bytes, api_endpoint: str) -> requests.models.Response:
         if not content:
             content = base64.b64encode(self.iot_device_csr.public_bytes(encoding=serialization.Encoding.PEM))
-        r = requests.post(self.est_url + endpoint,
+        r = requests.post(self.est_url + api_endpoint,
                           headers=headers or self.default_headers,
                           data=content,
                           cert=(self.mtls_cert_path, self.mtls_key_path),
@@ -204,7 +206,7 @@ class EstClient(object):
                           )
         return r
 
-    def simpleenroll(self, headers=None, content=""):
+    def simpleenroll(self, headers: dict or None = None, content: bytes = b"") -> dict:
         """
         Calls /simpleenroll endpoing
         :returns: dict with response elements crt, status_code, headers, content
@@ -222,7 +224,7 @@ class EstClient(object):
             "content": r.content
         }
 
-    def simplereenroll(self, headers=None, content=""):
+    def simplereenroll(self, headers: dict or None = None, content: bytes = b"") -> dict:
         """
         Calls /simplereenroll endpoing
         :returns: dict with response elements crt, status_code, headers, content
@@ -242,7 +244,7 @@ class EstClient(object):
             "content": r.content
         }
 
-    def self_initialise(self):
+    def self_initialise(self) -> bool:
         """
         Performs the tasks necessary to collect all the data for an IoT Device
         :return: nothing
@@ -257,7 +259,7 @@ class IotClient(object):
     Implementation of an IoT Client
     """
 
-    def __init__(self, thing_name: str, endpoint: str, port: int or None, est_client_kwargs: dict, save_creds:bool):
+    def __init__(self, thing_name: str, endpoint: str, port: int or None, est_client_kwargs: dict, save_creds: bool):
         self.thing_name = thing_name
         self.endpoint = endpoint
         self.port = port
@@ -301,7 +303,7 @@ class IotClient(object):
         print("Connection closed")
         self.connected = False
 
-    def est_bootstrap(self, save=False):
+    def est_bootstrap(self, save: bool = False) -> bool:
         self.est_client = EstClient(**self.est_kwargs)
         if self.est_client.self_initialise() is True:
             self.root_ca = self.est_client.iot_ca_cert_bytes
@@ -315,7 +317,7 @@ class IotClient(object):
         else:
             return False
 
-    def init_connection(self):
+    def init_connection(self) -> None:
         """
         Connects to AWS IoT Core
         :return: nothing
@@ -344,7 +346,7 @@ class IotClient(object):
         # Sets the callback for all messages
         self.mqtt_connection.on_message(self.new_message)
 
-    def connect(self):
+    def connect(self) -> None:
         """
         Connects to AWS IoT Core
         :return: nothing
@@ -358,7 +360,7 @@ class IotClient(object):
         connect_future = self.mqtt_connection.connect()
         connect_future.result()  # Raises an exception if connection fails
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         """
         Disconnects from AWS IoT Core
         :return: nothing
@@ -368,7 +370,7 @@ class IotClient(object):
             self.mqtt_connection.disconnect()
         self.connected = False
 
-    def new_message(self, topic, payload, dup, qos, retain, **kwargs):
+    def new_message(self, topic: str, payload: bytes, dup: bool, qos: QoS, retain: bool, **kwargs) -> None:
         print("Received message from topic '{}': {}".format(topic, payload))
         if topic not in self.messages:
             self.messages[topic] = {}
@@ -380,13 +382,13 @@ class IotClient(object):
             "kwargs": kwargs
         }
 
-    def subscribe(self, topic: str, qos=QoS.AT_LEAST_ONCE):
+    def subscribe(self, topic: str, qos: QoS = QoS.AT_LEAST_ONCE) -> bool:
         future, _ = self.mqtt_connection.subscribe(topic=topic, qos=qos)
         result = future.result()
         print("Subscribed: {}".format(result))
         return True
 
-    def publish(self, topic, payload, qos=QoS.AT_LEAST_ONCE, retain=False):
+    def publish(self, topic: str, payload: str, qos=QoS.AT_LEAST_ONCE, retain=False) -> bool:
         """
         """
         future, _ = self.mqtt_connection.publish(
@@ -399,7 +401,7 @@ class IotClient(object):
         print("Published: {}".format(result))
         return True
 
-    def renew_certificate(self, save=False):
+    def renew_certificate(self, save: bool = False) -> dict:
         r = self.est_client.simplereenroll()
         if r['status_code'] == 200:
             self.certificate_prev = self.certificate
@@ -415,6 +417,6 @@ class IotClient(object):
         return r
 
 
-def save_to_disk(filename, data):
+def save_to_disk(filename: str, data: str):
     with open(filename, "w") as f:
         f.write(data)

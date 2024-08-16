@@ -16,13 +16,14 @@
 
 import os
 import est_common as cmn
+from cryptography.x509.base import CertificateSigningRequest
 
 CA_CERT_SECRET_ARN = os.environ['CA_CERT_SECRET_ARN']
 CA_KEY_SECRET_ARN = os.environ['CA_KEY_SECRET_ARN']
 IOT_POLICY_NAME = os.environ['IOT_POLICY_NAME']
 
 
-def pre_reenroll(event):
+def pre_reenroll(event) -> bool:
     """
     This is the first function that is called when enrollment happens before the certificate is generated
     :param event:
@@ -31,7 +32,7 @@ def pre_reenroll(event):
     return True
 
 
-def reenroll(csr, csr_data):
+def reenroll(csr: CertificateSigningRequest, csr_data: dict) -> str or None:
     """
     This function signs a certificate for a IoT device. If the Thing exists in this account, it will be reattached
     to the new certificate. The previous certificate stays attached.
@@ -53,7 +54,7 @@ def reenroll(csr, csr_data):
     return pem_cert
 
 
-def post_reenroll(event):
+def post_reenroll(event) -> bool:
     """
     This is the last function that is called when enrollment happens after the certificate is generated
     :param event:
