@@ -28,6 +28,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 import datetime
+import time
 
 logging.basicConfig(stream=sys.stdout)
 logger = logging.getLogger('myLambda')
@@ -381,19 +382,33 @@ def sign_externally(csr, csr_data):
     raise NotImplementedError("Signing a CSR externally is not implemented")
 
 
-def register_certificate_with_iot_core(cert, thing_name):
+def register_certificate_with_iot_core(cert, thing_name, iot_policy_name):
     """
     Register a certificate with AWS IoT Core
+    :param iot_policy_name: the name of the IoT Policy to attach to the certificate
     :param str cert: PEM formatted Thing certificate
     :param str thing_name: The name of the IoT Thing
     :return:
     """
-
     if does_thing_exist(thing_name):
         registration = iot_client.register_certificate(
             certificatePem=cert,
-            setAsActive=True,
-            status='ACTIVE'
+            setAsActive=True
+        )
+        cert_id = registration['certificateId']
+        logger.debug("Certificate {} registered".format(cert_id))
+        # Wait for the certificate to be provisioned
+        i = 0
+        while i < 25:
+            i += 1
+            certs = [c['certificateId'] for c in iot_client.list_certificates()['certificates']]
+            if cert_id in certs:
+                break
+            time.sleep(0.2)
+        logger.debug("Attaching to Policy: {}".format(iot_policy_name))
+        iot_client.attach_policy(
+            policyName=iot_policy_name,
+            target=registration['certificateArn']
         )
         attachment = iot_client.attach_thing_principal(
             thingName=thing_name,
@@ -401,7 +416,7 @@ def register_certificate_with_iot_core(cert, thing_name):
         )
         logger.info("New certificate {} attached to Thing: {}".format(registration, thing_name))
         return True
-    logger.warning("the certificate could not be attached to Thing {}".format(thing_name))
+    logger.warning("The certificate could not be attached to Thing {}".format(thing_name))
     return False
 
 

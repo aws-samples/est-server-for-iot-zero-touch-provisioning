@@ -1,3 +1,11 @@
+# Path to the CDK config file to use
 cdk_config_file: "../config/config.yaml"
+# Path to mtls credentials if external
 mtls_cert_pem: null
 mtls_key_pem: null
+# MQTT topic to use during tests. Must match the active IoT Policy
+# Use <thing_name> as a placeholder. It will be replaced by its value during the tests.
+mqtt_topic: "messages/<thing_name>/hello"
+# Set to true to save IoT Core certificates and keys generated during the test to disk in
+# <current_dir>/temp/
+save_iot_creds_to_disk: false
