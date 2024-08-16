@@ -383,6 +383,10 @@ class IotClient(object):
         }
 
     def subscribe(self, topic: str, qos: QoS = QoS.AT_LEAST_ONCE) -> bool:
+        if not self.connected:
+            # subscribe will hang until the connection resumes
+            print("Not connected, cannot subscribe")
+            return False
         future, _ = self.mqtt_connection.subscribe(topic=topic, qos=qos)
         result = future.result()
         print("Subscribed: {}".format(result))
@@ -391,6 +395,9 @@ class IotClient(object):
     def publish(self, topic: str, payload: str, qos=QoS.AT_LEAST_ONCE, retain=False) -> bool:
         """
         """
+        if not self.connected:
+            print("Not connected, cannot publish")
+            return False
         future, _ = self.mqtt_connection.publish(
             topic=topic,
             payload=payload,
