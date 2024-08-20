@@ -5,7 +5,7 @@ a certificate without exposing any secret and without human intervention. It mak
 
 The EST Server has been developed to be compliant with [[RFC7030](https://datatracker.ietf.org/doc/html/rfc7030)] and it
 entirely "serverless".
-Note that *Implicit trust anchor* is not implemented. You'll have to use *the explicit trust anchor*, meaning 
+Note that *Explicit trust anchor* is not implemented. You'll have to use *the Implicit trust anchor*, meaning 
 that the EST server Certificate will have to be known in advance by the device.
 
 In addition, it provides features which will facilitate the management of IoT devices like enabling Just In Time 
@@ -221,6 +221,10 @@ The CDK code uses [cdk-nag library](https://github.com/cdklabs/cdk-nag) to enfor
 
 All the deployed resources are tagged with `APPLICATION=EST Server for AWS IoT`.
 
+Code assessment using cdk-nag, bandit and pip-audit
+
+[![security: bandit](https://img.shields.io/badge/security-bandit-yellow.svg)](https://github.com/PyCQA/bandit)
+
 ## Application configuration & associated features / behaviour
 The configuration odf the application before deployment is done via a single YAML configuration file `config/config.yaml`
 by default. You can specify a different configuration file as explains in [the section 'Deployment commands'](#deployment commands).
@@ -232,7 +236,7 @@ The configuration file is plit in two sections:
 In most cases you only need to provide the API Gateway custom domain name, the ACM ARN of the Certificate for this 
 custom domain name and, if applicable, the ARN for the ownership verification certificate.
 If you plan to let the deployment configure JITP, you will also have to provide the path to the provisioning template
-and IoT policy, or modify the files provided in the config folder.
+and IoT policy, or modify the files provided in the config directory.
 The other parameters are convenience:
 * Validity duration of generated certificates can be adjusted according to your policies
 * Names of important resources can be changed. This is particularly useful for the secrets in ACM which can only be deleted
@@ -259,7 +263,7 @@ A special Lambda function is provided for signing client certificates for mTLS. 
 CA certificate has been generated during deployment (the private key is known). 
 * Usage: configure the environment variable "TRUSTSTORE_BUCKET" to point to an S3 bucket (pre-configured to the Truststore 
 bucket) and make sure the Lambda function has read/write access.
-* Place the CSR in the S3 bucket. You can use a folder.
+* Place the CSR in the S3 bucket. You can use a directory.
 * Configure a test event with a JSON event payload containing the key "csr_s3_key" with a value matching the S3 object 
 key of the CSR in S3
 * Run the Lambda function manually. It will write the signed certificate at the same location, with the extension `.crt`.
@@ -293,7 +297,7 @@ function called by the endpoint.
 #### Just in Time Provisioning (JITP)
 JITP configuration is enabled by the parameter `configureJITP`. It uses the provisioning template and IoT policy 
 as specified in the corresponding parameters located in the section `Properties`. Two samples are provided in the `config`
-folder. You should verify and potentially customise them before deploying.
+directory. You should verify and potentially customise them before deploying.
 
 Important: 
 * The IoT policy uses the placeholders
@@ -346,19 +350,19 @@ Trigger with the environment variable `FORCE` set to "true" (`GENERATE_TRUSTSTOR
 Do not forget to remove this environment variable afterward.
 
 ## Testing your deployment
-The test folder contains `test_runner.py` which you can run manually in your venv with:
+The test directory contains `test_runner.py` which you can run manually in your venv with:
 ```bash
 python test_runner.py
 ```
 The tests cover:
 1. EST Server endpoints
 2. IoT Device interactions with IoT Core using the EST server as source of credentials. This will work only if you have
-enabled JITP configuration or if you have provisionned JITP in a target account and implemented the corresponding hooks
+enabled JITP configuration or if you have provisioned JITP in a target account and implemented the corresponding hooks
 for registering a certificate renewal (when calling `/simplereenroll` a device gets a new certificate which must be
 registered in IoT Core for the device to connect with the new certificate. JITP will not work for an existing Thing).
 
 Configura of the test can be done via `test/test_config.yaml`.
-A temp folder will be created in your current folder and will.
+A temp directory will be created in your current directory and will.
 `test_clients.py` is used for the testes and is also a reference implementation of an EST client and an IoT Device 
 using EST for bootstrapping.
 

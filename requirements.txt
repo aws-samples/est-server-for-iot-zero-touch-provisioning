@@ -5,3 +5,5 @@ awsiotsdk
 requests
 pyyaml
 pip-system-certs # Required on Mas OS and venv to access the system Root Certificates
+bandit # Required for code quality & security assessment
+pip-audit # Required for code quality & security assessment

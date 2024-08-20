@@ -108,7 +108,7 @@ class EstClient(object):
             headers = {"Accept": "application/pkcs7-mime"}
         r = requests.get(self.est_url + "/cacerts", headers=headers,
                          cert=(self.mtls_cert_path, self.mtls_key_path),
-                         verify=self.est_api_cert_path
+                         verify=self.est_api_cert_path, timeout=20
                          )
         r.raise_for_status()  # Raises an exception for 4xx and 5xx
         cert = b64.b64decode(r.content)
@@ -130,7 +130,7 @@ class EstClient(object):
         headers = headers or {"Accept": "*/*"}
         r = requests.get(self.est_url + "/csrattrs", headers=headers,
                          cert=(self.mtls_cert_path, self.mtls_key_path),
-                         verify=self.est_api_cert_path
+                         verify=self.est_api_cert_path, timeout=20
                          )
         r.raise_for_status()  # Raises an exception if not 200
         self.csrattrs = r.content
@@ -151,7 +151,8 @@ class EstClient(object):
                           headers=headers or self.default_headers,
                           data=content,
                           cert=(self.mtls_cert_path, self.mtls_key_path),
-                          verify=self.est_api_cert_path
+                          verify=self.est_api_cert_path,
+                          timeout=20
                           )
         return {
             "status_code": r.status_code,
@@ -202,7 +203,8 @@ class EstClient(object):
                           headers=headers or self.default_headers,
                           data=content,
                           cert=(self.mtls_cert_path, self.mtls_key_path),
-                          verify=self.est_api_cert_path
+                          verify=self.est_api_cert_path,
+                          timeout=20
                           )
         return r
 
@@ -283,6 +285,18 @@ class IotClient(object):
     def mqtt_messages(self) -> dict:
         return self.messages
 
+    def set_iot_creds(self, ca_certificate: str, device_certificate: str, device_private_key: str):
+        """
+        Force setting the credentials for connecting to IoT Core.
+        :param ca_certificate: PEM format
+        :param device_certificate: PEM format
+        :param device_private_key: PEM format
+        :return:
+        """
+        self.root_ca = ca_certificate
+        self.certificate = device_certificate
+        self.private_key = device_private_key
+
     def on_connection_interrupted(self, connection, error, **kwargs):
         print("Connection interrupted")
         self.connected = False
@@ -317,12 +331,12 @@ class IotClient(object):
         else:
             return False
 
-    def init_connection(self) -> None:
+    def init_connection(self, skip_est=False) -> None:
         """
         Connects to AWS IoT Core
         :return: nothing
         """
-        if not self.est_client:
+        if not self.est_client or skip_est is True:
             if self.est_bootstrap() is False:
                 raise Exception("Failed to bootstrap EST Client")
 

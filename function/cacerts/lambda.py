@@ -33,7 +33,7 @@ def lambda_handler(event, context):
     if "*/*" not in accept and "application/pkcs7-mime" not in accept:
         cmn.logger.warn("Unsupported accept header: {}".format(accept))
         return cmn.error400("Unsupported accept header")
-    req = request.urlopen(AMAZON_IOT_CA_URL)
+    req = request.urlopen(AMAZON_IOT_CA_URL)  # nosec Bandit suppression: This URL downloads the Amazon IoT CA
     cert = req.read().decode('utf-8')
     if cert:
         return cmn.success200_cert(cert)

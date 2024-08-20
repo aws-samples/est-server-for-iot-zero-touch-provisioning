@@ -1,0 +1,225 @@
+{
+  "dependencies": [
+    {
+      "name": "boto3",
+      "version": "1.34.162",
+      "vulns": []
+    },
+    {
+      "name": "cryptography",
+      "version": "43.0.0",
+      "vulns": []
+    },
+    {
+      "name": "awsiotsdk",
+      "version": "1.22.0",
+      "vulns": []
+    },
+    {
+      "name": "awscrt",
+      "version": "0.21.1",
+      "vulns": []
+    },
+    {
+      "name": "requests",
+      "version": "2.32.3",
+      "vulns": []
+    },
+    {
+      "name": "pyyaml",
+      "version": "6.0.2",
+      "vulns": []
+    },
+    {
+      "name": "pip-system-certs",
+      "version": "4.0",
+      "vulns": []
+    },
+    {
+      "name": "bandit",
+      "version": "1.7.9",
+      "vulns": []
+    },
+    {
+      "name": "pip-audit",
+      "version": "2.7.3",
+      "vulns": []
+    },
+    {
+      "name": "botocore",
+      "version": "1.34.162",
+      "vulns": []
+    },
+    {
+      "name": "cachecontrol",
+      "version": "0.14.0",
+      "vulns": []
+    },
+    {
+      "name": "certifi",
+      "version": "2024.7.4",
+      "vulns": []
+    },
+    {
+      "name": "cffi",
+      "version": "1.17.0",
+      "vulns": []
+    },
+    {
+      "name": "charset-normalizer",
+      "version": "3.3.2",
+      "vulns": []
+    },
+    {
+      "name": "cyclonedx-python-lib",
+      "version": "7.6.0",
+      "vulns": []
+    },
+    {
+      "name": "html5lib",
+      "version": "1.1",
+      "vulns": []
+    },
+    {
+      "name": "idna",
+      "version": "3.7",
+      "vulns": []
+    },
+    {
+      "name": "jmespath",
+      "version": "1.0.1",
+      "vulns": []
+    },
+    {
+      "name": "packaging",
+      "version": "24.1",
+      "vulns": []
+    },
+    {
+      "name": "pip-api",
+      "version": "0.0.34",
+      "vulns": []
+    },
+    {
+      "name": "pip-requirements-parser",
+      "version": "32.0.1",
+      "vulns": []
+    },
+    {
+      "name": "rich",
+      "version": "13.7.1",
+      "vulns": []
+    },
+    {
+      "name": "s3transfer",
+      "version": "0.10.2",
+      "vulns": []
+    },
+    {
+      "name": "stevedore",
+      "version": "5.2.0",
+      "vulns": []
+    },
+    {
+      "name": "toml",
+      "version": "0.10.2",
+      "vulns": []
+    },
+    {
+      "name": "urllib3",
+      "version": "2.2.2",
+      "vulns": []
+    },
+    {
+      "name": "wrapt",
+      "version": "1.16.0",
+      "vulns": []
+    },
+    {
+      "name": "filelock",
+      "version": "3.15.4",
+      "vulns": []
+    },
+    {
+      "name": "license-expression",
+      "version": "30.3.1",
+      "vulns": []
+    },
+    {
+      "name": "markdown-it-py",
+      "version": "3.0.0",
+      "vulns": []
+    },
+    {
+      "name": "msgpack",
+      "version": "1.0.8",
+      "vulns": []
+    },
+    {
+      "name": "packageurl-python",
+      "version": "0.15.6",
+      "vulns": []
+    },
+    {
+      "name": "pbr",
+      "version": "6.0.0",
+      "vulns": []
+    },
+    {
+      "name": "py-serializable",
+      "version": "1.1.0",
+      "vulns": []
+    },
+    {
+      "name": "pygments",
+      "version": "2.18.0",
+      "vulns": []
+    },
+    {
+      "name": "python-dateutil",
+      "version": "2.9.0.post0",
+      "vulns": []
+    },
+    {
+      "name": "six",
+      "version": "1.16.0",
+      "vulns": []
+    },
+    {
+      "name": "sortedcontainers",
+      "version": "2.4.0",
+      "vulns": []
+    },
+    {
+      "name": "pycparser",
+      "version": "2.22",
+      "vulns": []
+    },
+    {
+      "name": "pyparsing",
+      "version": "3.1.2",
+      "vulns": []
+    },
+    {
+      "name": "webencodings",
+      "version": "0.5.1",
+      "vulns": []
+    },
+    {
+      "name": "boolean-py",
+      "version": "4.0",
+      "vulns": []
+    },
+    {
+      "name": "defusedxml",
+      "version": "0.7.1",
+      "vulns": []
+    },
+    {
+      "name": "mdurl",
+      "version": "0.1.2",
+      "vulns": []
+    }
+  ],
+  "fixes": []
+}
