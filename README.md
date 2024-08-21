@@ -73,15 +73,17 @@ You'll have to implement the interface to your PKI... do you like python3?
 1. If you copied the Provisioning Template input its new path/name in the configuration file
 1. Give a look at the IoT Policy `config/iot_policy_default.json`, make a copy and modify as necessary
 1. If you copied the IoT Policy input its new path/name in the configuration file
-1. Open the file `layer/utils/est_common.py`
-   1. Find the function `sign_externally` - this is where you will implement the interface to your external PKI.
+1. Implement the interface to your PKI in the file `layer/utils/external_iot_pki.py`
+1. Deploy
 
 ### Pro-tips
-The lambda `function/simpleenroll/lambda.py` has `pre_enroll` and  `post_enroll` functions which are placeholders to 
-perform additional tasks. There you can, for example, check if a device is not in a forbidden list before signing it 
-CSR and record the transaction in a DB... or anything else you like.
-
-It is the same for `function/simplereenroll/lambda.py` with `pre_reenroll` and `post_reenroll`.
+You can customise certain phases of the EST by editing `layer/utils/external_iot_pki.py`.
+You can:
+* Execute actions before enrollment
+* Execute actions after enrollment
+* Execute actions before reenrollment
+* Execute actions after reenrollment
+* Implement an interface to an external PKI for signing IoT Device CSR
 
 ### About re-enrollment
 The first time a device obtains a certificates and connects to IoT Core, it will be enrolled automatically by JITP.
@@ -142,9 +144,9 @@ This application is all about certificates and this can get confusing. So we nee
 confusion. There are three groups of certificates involved:
 
 ### Everything related to the IoT Operations
-We are here looking at IoT Core and the IoT Devices identification. The main purpose of an EST Server is "delivering
-certificates to IoT devices" so they can start doing their job securely. When we will discuss this part of the application 
-we will refer to it with the word "device" and/or "IoT". 
+We are here looking at IoT Core and the IoT Devices identification. The main purpose of an EST Server is "securely 
+delivering certificates to clients" so they can start doing their job securely. When we will discuss this part of the  
+application we will refer to it with the word "device" and/or "IoT". 
 To operate securely IoT Core needs Certificate Authority (CA) registered. Then the IoT device can send a 
 Certificate Signing Request (CSR) to receive in return a *Device Certificate* signed by the CA that was registered in IoT Core.
 Note that it doesn't mean that the signature is effectively done by IoT Core. We'll get back to this later.
@@ -171,7 +173,7 @@ And this is not to be confused with the *Device Certificate* used for the IoT op
 
 ### Features
 The main goal of this code sample is to easily deploy an EST Server, a service which is capable of:
-* Providing the current CA Certificate of the IoT Service (IoT Core in our case).
+* Providing the current CA Certificate of the mTLS handshake verification by the client.
 * Signing a CSR and returning the corresponding Certificate to an IoT Device for a first enrollment and a certificate 
 renewal.
 
@@ -190,13 +192,14 @@ mTLS client certificates (sign a CSR) with the serf-signed root CA that was crea
 Signing an mTLS CSR is a manual action and a Lambda function is provided for this.
 
 * Just in Time Provisioning (JITP): JITP is a feature of AWS IoT Core allowing a new device to be automatically
-provisioned at first connection. When valid certificate, signed by the CA registered in IoT Core, is presented by a new 
+provisioned at first connection. When a valid certificate, signed by the CA registered in IoT Core, is presented by a new 
 device, IoT automatically provisions the device according to pre-configured provisioning template and IoT policy. More
 details are available [here](https://docs.aws.amazon.com/iot/latest/developerguide/jit-provisioning.html). By setting the
 configuration parameter `configureJITP` to `true` JITP will be configured in the account when the CDK is deployed.
 
 All the above feature options are controlled by a few configuration parameters of the configuration file you'll have to 
-create. This is the single point of configuration, except if you need to use an external PKI for signing the IoT Device CSR.
+create. This is the single point of configuration, except if you need to use an external PKI for signing the IoT Device CSR,
+in which case you also have to implement this interface.
 
 ### Architecture
 This CDK application deploys serverless AWS resources, limiting the run costs of the service and reducing the efforts to keep
@@ -222,9 +225,9 @@ The CDK code uses [cdk-nag library](https://github.com/cdklabs/cdk-nag) to enfor
 All the deployed resources are tagged with `APPLICATION=EST Server for AWS IoT`.
 
 ## Application configuration & associated features / behaviour
-The configuration odf the application before deployment is done via a single YAML configuration file `config/config.yaml`
-by default. You can specify a different configuration file as explains in [the section 'Deployment commands'](#deployment commands).
-The configuration file is plit in two sections:
+The configuration of the application before deployment is done via a single YAML configuration file `config/config.yaml`
+by default. You can specify a different configuration file as explained in [the section 'Deployment commands'](#deployment commands).
+The configuration file is split in two sections:
 * Properties: contains parameters that do not influence the resources that will be deployed.
 * DeploymentOptions: depending on the values provided (or not) in this section, some resources will be deployed or not.
 
@@ -287,7 +290,9 @@ an external PKI depending on the configuration above:
 * If a valid CA certificate **AND** the private key are present in ASM, the signing will be done locally by the Lambda
 function called by the endpoint.
 * If the Private key is missing from ASM, signing must be delegated to an external PKI. This is detected by the Lambda
-* function which then calls the python function `sign_externally` located in the Lambda layer `est_common.py`.
+function which then calls the python function `customisations/sign_device_csr_with_external_pki` located in the Lambda 
+layer `utils`.
+
 **You MUST then implement this function**.
 
 #### Just in Time Provisioning (JITP)
@@ -322,7 +327,8 @@ associated with it.
 EST Server is deployed**
 
 ### Pre / Post (re)enrollment hooks
-Both the `simplenroll` and `simplereenroll` Lambda functions have pre-enrollment and post-enrollment hooks available.
+Both the `simplenroll` and `simplereenroll` Lambda functions have pre-enrollment and post-enrollment hooks available in
+`utils/customisations.py`.
 These hooks allow you to implement additional functionality before and after the CSR signing action.
 
 ### Tenant
@@ -335,8 +341,8 @@ or in a multi-tenant context. This parameter is currently not used by the core f
 To update an external Iot CA without JITP, run the Lambda Trigger manually again (it doesn't run at each deployment as 
 explained [here](https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.triggers-readme.html#re-execution-of-triggers)) 
 after uploading the new certificate to S3 (see the Lambda function environment variables).
-If you use a generated and want to reset it to a new one, you can set the environment variable FORCE to "true". Do not 
-forget to remove this environment variable afterward.
+If you use a generated CA and want to reset it to a new one, you can set the environment variable FORCE to "true". 
+Do not forget to remove this environment variable afterward.
 If JITP was enabled it will use the same provisioning template.
 
 ### Updating the mTLS configuration
@@ -344,6 +350,8 @@ If you use an external Truststore certificate chain you can upload it to S3 and 
 If you want to completely re-generate a new set of self-signed certificates and keys you can run manually the Lambda 
 Trigger with the environment variable `FORCE` set to "true" (`GENERATE_TRUSTSTORE` must also be "true").
 Do not forget to remove this environment variable afterward.
+API Gateway might not pick the new version of the Truststore automatically. In this case disable mTLS, wait for the
+update to take place and enable it again.
 
 ## Testing your deployment
 The test folder contains `test_runner.py` which you can run manually in your venv with:

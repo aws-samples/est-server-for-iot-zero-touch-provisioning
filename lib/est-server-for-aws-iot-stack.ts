@@ -55,11 +55,12 @@ export class EstServerForAwsIotStack extends cdk.Stack {
                 layers: [CommonLambdaLayer],
                 environment: {
                     LOG_LEVEL: estConfig.Properties.lambdaLoggerLevel,
-                    AMAZON_IOT_CA_URL: "https://www.amazontrust.com/repository/AmazonRootCA1.pem",
+                    CA_CERT_SECRET_ARN: iot_ca.iotCoreCaCertSecret.secretArn,
                     },
                 timeout: cdk.Duration.seconds(10),
             }
         );
+        iot_ca.iotCoreCaCertSecret.grantRead(ld_cacerts.lambda)
         secretsEncryptionKey.grantDecrypt(ld_cacerts.lambda)
 
         const ld_csrattrs = new MakeLambda(this, "lambda_csrattrs",

@@ -17,19 +17,11 @@
 import os
 import est_common as cmn
 from cryptography.x509.base import CertificateSigningRequest
+from customisations import pre_reenroll, post_reenroll
 
 CA_CERT_SECRET_ARN = os.environ['CA_CERT_SECRET_ARN']
 CA_KEY_SECRET_ARN = os.environ['CA_KEY_SECRET_ARN']
 IOT_POLICY_NAME = os.environ['IOT_POLICY_NAME']
-
-
-def pre_reenroll(event) -> bool:
-    """
-    This is the first function that is called when enrollment happens before the certificate is generated
-    :param event:
-    :return: True or False
-    """
-    return True
 
 
 def reenroll(csr: CertificateSigningRequest, csr_data: dict) -> str or None:
@@ -52,15 +44,6 @@ def reenroll(csr: CertificateSigningRequest, csr_data: dict) -> str or None:
     if pem_cert:
         registration = cmn.register_certificate_with_iot_core(pem_cert, csr_data['thingName'], IOT_POLICY_NAME)
     return pem_cert
-
-
-def post_reenroll(event) -> bool:
-    """
-    This is the last function that is called when enrollment happens after the certificate is generated
-    :param event:
-    :return: True or False
-    """
-    return True
 
 
 def lambda_handler(event, context):

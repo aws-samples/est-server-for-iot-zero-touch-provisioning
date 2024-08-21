@@ -16,18 +16,10 @@
 import os
 import est_common as cmn
 from cryptography.x509.base import CertificateSigningRequest
+from customisations import pre_enroll, post_enroll
 
 CA_CERT_SECRET_ARN = os.environ['CA_CERT_SECRET_ARN']
 CA_KEY_SECRET_ARN = os.environ['CA_KEY_SECRET_ARN']
-
-
-def pre_enroll(event) -> bool:
-    """
-    This is the first function that is called when enrollment happens before the certificate is generated
-    :param event:
-    :return:
-    """
-    return True
 
 
 def enroll(csr: CertificateSigningRequest, csr_data: dict) -> str or None:
@@ -39,15 +31,6 @@ def enroll(csr: CertificateSigningRequest, csr_data: dict) -> str or None:
     """
     return cmn.sign_thing_csr(csr=csr, csr_data=csr_data, ca_cert_secret_arn=CA_CERT_SECRET_ARN,
                               ca_key_secret_arn=CA_KEY_SECRET_ARN)
-
-
-def post_enroll(event) -> bool:
-    """
-    This is the last function that is called when enrollment happens after the certificate is generated
-    :param event:
-    :return:
-    """
-    return True
 
 
 def lambda_handler(event, context):

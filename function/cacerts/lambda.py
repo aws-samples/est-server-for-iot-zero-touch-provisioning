@@ -15,14 +15,14 @@
 
 import os
 import est_common as cmn
-from urllib import request
 
-AMAZON_IOT_CA_URL = os.environ['AMAZON_IOT_CA_URL']
+
+CA_CERT_SECRET_ARN = os.environ['CA_CERT_SECRET_ARN']
 
 
 def lambda_handler(event, context):
     """
-    Returns the current CA certificate used by AWS IoT Core
+    Returns the current CA certificate used for mTLS
     :param event: 
     :param context: 
     :return: 
@@ -33,10 +33,9 @@ def lambda_handler(event, context):
     if "*/*" not in accept and "application/pkcs7-mime" not in accept:
         cmn.logger.warn("Unsupported accept header: {}".format(accept))
         return cmn.error400("Unsupported accept header")
-    req = request.urlopen(AMAZON_IOT_CA_URL)
-    cert = req.read().decode('utf-8')
+    cert = cmn.get_secret_value(CA_CERT_SECRET_ARN)
     if cert:
         return cmn.success200_cert(cert)
     else:
-        cmn.logger.error("Failed to retrieve certificate ARN: {}".format(AMAZON_IOT_CA_URL))
+        cmn.logger.error("Failed to retrieve certificate ARN: {}".format(CA_CERT_SECRET_ARN))
         return cmn.error500("Failed to retrieve the certificate")

@@ -29,6 +29,18 @@ import base64 as b64
 import os
 import datetime
 
+IOT_CORE_CA_URL = "https://www.amazontrust.com/repository/AmazonRootCA1.pem"
+
+
+def verify_cert(cert: x509.base.Certificate, pki_ca: x509.base.Certificate) -> bool:
+    try:
+        cert.verify_directly_issued_by(pki_ca)
+        return True
+    except Exception as e:
+        print("Certificate verification against PKI CA failed")
+        print(e)
+        return False
+
 
 class EstClient(object):
     """
@@ -79,7 +91,7 @@ class EstClient(object):
             f.write(mtls_cert_pem)
         with open(self.mtls_key_path, 'w') as f:
             f.write(mtls_key_pem)
-        self.iot_ca_cert_path = self.files_base_path + "/iot_ca_cert.crt"
+        self.iot_ca_cert_path = self.files_base_path + "/iot_pki_ca_cert.pem"
 
     @property
     def iot_key_bytes(self) -> bytes:
@@ -215,6 +227,8 @@ class EstClient(object):
         if r.status_code == 200:
             crt_pem = b64.b64decode(r.content).decode('utf-8')
             self.iot_device_cert = load_pem_x509_certificate(b64.b64decode(r.content))
+            if verify_cert(self.iot_device_cert, self.iot_ca_cert) is not True:
+                raise Exception("Device Certificate verification against PKI CA failed")
         else:
             crt_pem = r.text
         return {
@@ -235,6 +249,8 @@ class EstClient(object):
         if r.status_code == 200:
             crt_pem = b64.b64decode(r.content).decode('utf-8')
             self.iot_device_cert = load_pem_x509_certificate(b64.b64decode(r.content))
+            if verify_cert(self.iot_device_cert, self.iot_ca_cert) is not True:
+                raise Exception("Device Certificate verification against PKI CA failed")
         else:
             crt_pem = r.text
         return {
@@ -249,8 +265,14 @@ class EstClient(object):
         Performs the tasks necessary to collect all the data for an IoT Device
         :return: nothing
         """
-        self.get_iot_ca_cert()
-        self.simpleenroll()
+        resp = self.get_iot_ca_cert()
+        if not resp['status_code'] == 200:
+            print("Failed to boostrap from /cacerts")
+            return False
+        resp = self.simpleenroll()
+        if not resp['status_code'] == 200:
+            print("Failed to boostrap from /simpleenroll")
+            return False
         return True
 
 
@@ -306,15 +328,24 @@ class IotClient(object):
     def est_bootstrap(self, save: bool = False) -> bool:
         self.est_client = EstClient(**self.est_kwargs)
         if self.est_client.self_initialise() is True:
-            self.root_ca = self.est_client.iot_ca_cert_bytes
             self.certificate = self.est_client.iot_cert_bytes
             self.private_key = self.est_client.iot_key_bytes
             if save:
-                save_to_disk("./temp/iot_root_ca.pem", self.root_ca.decode('utf-8'))
                 save_to_disk("temp/iot_device.crt", self.certificate.decode('utf-8'))
                 save_to_disk("./temp/iot_device.key", self.private_key.decode('utf-8'))
             return True
         else:
+            return False
+
+    def get_root_ca(self, save: bool = False) -> bool:
+        try:
+            r = requests.get(IOT_CORE_CA_URL)
+            self.root_ca = r.content
+            if save is True:
+                save_to_disk("./temp/iot_core_root_ca.pem", self.root_ca.decode('utf-8'))
+            return True
+        except Exception as e:
+            print("Got exception when fetching AWS IoT Root CA from URL {}: {}".format(IOT_CORE_CA_URL, e))
             return False
 
     def init_connection(self) -> None:
@@ -323,8 +354,11 @@ class IotClient(object):
         :return: nothing
         """
         if not self.est_client:
-            if self.est_bootstrap() is False:
+            if self.est_bootstrap() is not True:
                 raise Exception("Failed to bootstrap EST Client")
+        if not self.root_ca:
+            if self.get_root_ca() is not True:
+                raise Exception("Failed to fetch AWS IoT Root CA")
 
         if self.connected:
             self.disconnect()
