@@ -14,6 +14,48 @@ Provisioning (JITP). You will also find a lambda allowing to sign client CSR for
 The multiple options available will hopefully allow you to configure the EST service according to your use case, and
 in just a few minutes. We will go in details in the next sections, but for now lets take care of the impatient ones.
 
+## Content
+<!-- TOC -->
+* [Welcome to the EST Server for AWS IoT](#welcome-to-the-est-server-for-aws-iot)
+  * [Content](#content)
+  * [Flash Start](#flash-start)
+    * [You don't have any Root CA Certificate except for API Gateway custom domain name](#you-dont-have-any-root-ca-certificate-except-for-api-gateway-custom-domain-name)
+    * [You already have a CA Trust Chain for mTLS and you use an external PKI for signing the devices](#you-already-have-a-ca-trust-chain-for-mtls-and-you-use-an-external-pki-for-signing-the-devices)
+    * [Pro-tips](#pro-tips)
+    * [About re-enrollment](#about-re-enrollment)
+  * [Setting-up your environment](#setting-up-your-environment)
+    * [Pre-requisites](#pre-requisites)
+    * [Clone the repo](#clone-the-repo)
+    * [Install dependencies](#install-dependencies)
+    * [Deployment commands](#deployment-commands)
+    * [IMPORTANT](#important)
+  * [Establishing the bases](#establishing-the-bases)
+    * [Everything related to the IoT Operations](#everything-related-to-the-iot-operations)
+    * [A server or an API must be secure](#a-server-or-an-api-must-be-secure)
+    * [The users of the EST Server also need to be identified](#the-users-of-the-est-server-also-need-to-be-identified)
+  * [Understanding the application features and architecture](#understanding-the-application-features-and-architecture)
+    * [Features](#features)
+    * [Architecture](#architecture)
+    * [Security & Compliance](#security--compliance)
+  * [Application configuration & associated features / behaviour](#application-configuration--associated-features--behaviour)
+    * [Properties](#properties)
+    * [Deployment options](#deployment-options)
+      * [API Gateway Truststore](#api-gateway-truststore)
+      * [IoT Core CA parameters](#iot-core-ca-parameters)
+      * [Just in Time Provisioning (JITP)](#just-in-time-provisioning-jitp)
+  * [Additional features](#additional-features)
+    * [Reenrollment](#reenrollment)
+    * [Pre / Post (re)enrollment hooks](#pre--post-reenrollment-hooks)
+    * [Tenant](#tenant)
+    * [Updating the IoT CA and JITP](#updating-the-iot-ca-and-jitp)
+    * [Updating the mTLS configuration](#updating-the-mtls-configuration)
+  * [Customisation](#customisation)
+    * [Customise the device CSR signing with you own PKI](#customise-the-device-csr-signing-with-you-own-pki)
+    * [Enrollment hooks](#enrollment-hooks)
+    * [Re-enrollment hooks](#re-enrollment-hooks)
+  * [Testing your deployment](#testing-your-deployment)
+<!-- TOC -->
+
 ## Flash Start
 If you don't know what an EST Server is and/or you are not familiar with the AWS Cloud Development Kit (CDK) nor 
 AWS services (Amazon API Gateway, Amazon S3, AWS Iot Core, AWS Certificate Manager ) stop reading and skip to the next 
@@ -73,11 +115,11 @@ You'll have to implement the interface to your PKI... do you like python3?
 1. If you copied the Provisioning Template input its new path/name in the configuration file
 1. Give a look at the IoT Policy `config/iot_policy_default.json`, make a copy and modify as necessary
 1. If you copied the IoT Policy input its new path/name in the configuration file
-1. Implement the interface to your PKI in the file `layer/utils/external_iot_pki.py`
+1. Implement the interface to your PKI in the file [layer/utils/customisation.py](layer/utils/customisations.py)
 1. Deploy
 
 ### Pro-tips
-You can customise certain phases of the EST by editing `layer/utils/external_iot_pki.py`.
+You can customise certain phases of the EST by editing [layer/utils/customisation.py](layer/utils/customisations.py).
 Here are the available hooks:
 * Execute actions before enrollment
 * Execute actions after enrollment
@@ -124,7 +166,7 @@ You can also specify a custom configuration file location:
 ```bash
 cdk deploy --context configFile=my_custom_location/my_custom_config.yaml --all
 ```
-You can find more commands nd options for `cdk` here: https://docs.aws.amazon.com/cdk/v2/guide/ref-cli-cmd.html
+You can find more commands and options for `cdk` here: https://docs.aws.amazon.com/cdk/v2/guide/ref-cli-cmd.html
 
 ### IMPORTANT
 This application CDK uses two Lambda Triggers to deploy resources that need contextual information or cannot expose
@@ -226,7 +268,7 @@ All the deployed resources are tagged with `APPLICATION=EST Server for AWS IoT`.
 
 ## Application configuration & associated features / behaviour
 The configuration of the application before deployment is done via a single YAML configuration file `config/config.yaml`
-by default. You can specify a different configuration file as explained in [the section 'Deployment commands'](#deployment commands).
+by default. You can specify a different configuration file as explained in [the section 'Deployment commands'](#deployment-commands).
 The configuration file is split in two sections:
 * Properties: contains parameters that do not influence the resources that will be deployed.
 * DeploymentOptions: depending on the values provided (or not) in this section, some resources will be deployed or not.
@@ -251,10 +293,12 @@ wait for a new deployment.
 ### Deployment options
 The parameters in this section will affect what resources are deployed and what happens during the deployment.
 
-#### `mTlsTruststoreCertificatesChainFile`
+#### API Gateway Truststore
+
 [mTLS in API Gateway](https://docs.aws.amazon.com/apigateway/latest/developerguide/rest-api-mutual-tls.html) requires a 
 Truststore document to be placed in S3 and associated in your custom domain name. If you provide a local path to an 
 existing truststore document, the deployment will copy it to S3 and used it for configuring API Gateway.
+Specify this path in `mTlsTruststoreCertificatesChainFile`.
 
 If you do not provide the Truststore (use empty string ""), the deployment will:
 * Create a self-signed CA certificate for mTLS
@@ -332,7 +376,7 @@ EST Server is deployed**
 
 ### Pre / Post (re)enrollment hooks
 Both the `simplenroll` and `simplereenroll` Lambda functions have pre-enrollment and post-enrollment hooks available in
-`utils/customisations.py`.
+the Layer [layer/utils/customisation.py](layer/utils/customisations.py).
 These hooks allow you to implement additional functionality before and after the CSR signing action.
 
 ### Tenant
@@ -361,7 +405,7 @@ update to take place and enable it again.
 This section give an overview of the available code customisations options. The information is mostly already scattered 
 elsewhere in this document, but it doesn't to have a single place to recap...
 
-All customisations should be implemented in the Lambda layer `layer/utils/external_iot_pki.py`.
+All customisations should be implemented in the Lambda layer [layer/utils/customisation.py](layer/utils/customisations.py).
 
 ### Customise the device CSR signing with you own PKI
 If you deployed without a self-signed IoT Root CA for signing device CSR, you must implement your IoT PKI signing 
@@ -389,7 +433,7 @@ in `customisations/post_enroll`.
 Same as before for a re-enrollment call.
 
 ## Testing your deployment
-The test folder contains `test_runner.py` which you can run manually in your venv with:
+The test folder contains [test_runner.py](test/test_runner.py) which you can run manually in your venv with:
 ```bash
 python test_runner.py
 ```
@@ -400,12 +444,10 @@ enabled JITP configuration or if you have provisionned JITP in a target account 
 for registering a certificate renewal (when calling `/simplereenroll` a device gets a new certificate which must be
 registered in IoT Core for the device to connect with the new certificate. JITP will not work for an existing Thing).
 
-Configura of the test can be done via `test/test_config.yaml`.
+Configuration of the test can be done via [test/test_config.yaml](test/test_config.yaml).
 A temp folder will be created in your current folder and will.
-`test_clients.py` is used for the testes and is also a reference implementation of an EST client and an IoT Device 
+[test_clients.py](test/test_clients.py) is used for the testes and is also a reference implementation of an EST client and an IoT Device 
 using EST for bootstrapping.
-
-If you specify an IoT endpoint not located in the
 
 Running the tests requires `Administrator` or `PowerUserAccess` privileges because it uses boto3 to access some 
 information on the AWS account.
