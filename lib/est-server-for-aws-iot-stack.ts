@@ -283,6 +283,13 @@ export class EstServerForAwsIotStack extends cdk.Stack {
                 requestParameters: PostReqParams,
             });
 
+        // Outputs
+         new cdk.CfnOutput(this, "Custom Secret", {
+            exportName: "EST-Server-custom-secret",
+            key: "ESTServerCustomSecretArn",
+            value: customSecret.secretArn,
+        });
+
        // Suppress findings for acceptable CDK-NAG warnings and errors - doesn't work from API construct
         NagSuppressions.addResourceSuppressions(
             api,

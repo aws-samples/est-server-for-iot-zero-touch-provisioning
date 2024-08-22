@@ -78,7 +78,7 @@ You'll have to implement the interface to your PKI... do you like python3?
 
 ### Pro-tips
 You can customise certain phases of the EST by editing `layer/utils/external_iot_pki.py`.
-You can:
+Here are the available hooks:
 * Execute actions before enrollment
 * Execute actions after enrollment
 * Execute actions before reenrollment
@@ -297,9 +297,7 @@ an external PKI depending on the configuration above:
 function called by the endpoint.
 * If the Private key is missing from ASM, signing must be delegated to an external PKI. This is detected by the Lambda
 function which then calls the python function `customisations/sign_device_csr_with_external_pki` located in the Lambda 
-layer `utils`.
-
-**You MUST then implement this function**.
+layer `utils`. **You MUST then implement this function**.
 
 #### Just in Time Provisioning (JITP)
 JITP configuration is enabled by the parameter `configureJITP`. It uses the provisioning template and IoT policy 
@@ -358,6 +356,37 @@ Trigger with the environment variable `FORCE` set to "true" (`GENERATE_TRUSTSTOR
 Do not forget to remove this environment variable afterward.
 API Gateway might not pick the new version of the Truststore automatically. In this case disable mTLS, wait for the
 update to take place and enable it again.
+
+## Customisation
+This section give an overview of the available code customisations options. The information is mostly already scattered 
+elsewhere in this document, but it doesn't to have a single place to recap...
+
+All customisations should be implemented in the Lambda layer `layer/utils/external_iot_pki.py`.
+
+### Customise the device CSR signing with you own PKI
+If you deployed without a self-signed IoT Root CA for signing device CSR, you must implement your IoT PKI signing 
+function in `customisations/sign_device_csr_with_external_pki`. This function is called automatically if the Root CA cert 
+and private key are not available in ASM.
+
+**Keep you code secure:** 
+
+Do **NOT** hardcode secret values like API keys, credentials, etc. Instead, place them after deployment in the ASM secret 
+that has been deployed for you (with a dummy value). You'll find its name in the configuration file. 
+For obvious security reasons, only the Lambda functions `simpleenroll` and `simplereenroll` have read/write access to 
+this secret and receive the environment variable providing the secret ARN. But since this code is placed in a layer 
+imported by all the Lambda functions, you should NOT use any global variable related to this secret.
+The `sign_device_csr_with_external_pki` function already has the code to retrieve this secret as a python dictionary.
+
+### Enrollment hooks
+You can execute actions before the CSR signing is started by implementing them in `customisations/pre_enroll`.
+This function receives the entire event passed to the Lambda handler by API Gateway, so you have access to all the incoming 
+information.
+
+Similarly, you can execute actions after the CSR is signed and before it is returned to API Gateway by implementing them 
+in `customisations/post_enroll`.
+
+### Re-enrollment hooks
+Same as before for a re-enrollment call.
 
 ## Testing your deployment
 The test folder contains `test_runner.py` which you can run manually in your venv with:
