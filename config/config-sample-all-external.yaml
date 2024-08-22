@@ -4,6 +4,8 @@ Properties:
   apiCustomDomainName: "YOUR API DOMAIN NAME HERE"
   apiCertificateArn: "YOUR API CERTIFICATE ARN from CERTIFICATE MANAGER HERE"
   apiOwnershipVerificationCertificateArn: "YOUR API OWNERSHIP VERIFICATION CERTIFICATE ARN from CERTIFICATE MANAGER HERE IF NECESSARY"
+  # Enable or disable caller Headers
+  apiStrictHeadersCheck: true
   # EST mTLS server side
   estMtlsCaSecretsName: "estMtlsCaSecrets"
   estMtlsCaCertValidity: 10

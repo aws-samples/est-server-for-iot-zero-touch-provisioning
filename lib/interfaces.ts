@@ -6,6 +6,8 @@ export interface EstConfig {
         apiCustomDomainName: NonNullable<string>
         apiCertificateArn: NonNullable<string>
         apiOwnershipVerificationCertificateArn: NonNullable<string>
+        // Enable or disable strict caller headers check
+        apiStrictHeadersCheck: NonNullable<boolean>
         // EST mTLS server side
         estMtlsCaSecretsName: NonNullable<string>
         estMtlsCaCertValidity: NonNullable<number>

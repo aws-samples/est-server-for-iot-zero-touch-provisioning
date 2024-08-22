@@ -122,7 +122,12 @@ export class ApiBase extends Construct {
                     statement: {
                         managedRuleGroupStatement: {
                             vendorName: "AWS",
-                            name: "AWSManagedRulesCommonRuleSet"
+                            name: "AWSManagedRulesCommonRuleSet",
+                            excludedRules: [
+                                {
+                                    name: "NoUserAgent_HEADER"
+                                }
+                            ]
                         }
                     },
                     overrideAction: {

@@ -234,8 +234,14 @@ The configuration file is split in two sections:
 ### Properties
 In most cases you only need to provide the API Gateway custom domain name, the ACM ARN of the Certificate for this 
 custom domain name and, if applicable, the ARN for the ownership verification certificate.
-If you plan to let the deployment configure JITP, you will also have to provide the path to the provisioning template
+If you plan to let the deployment configure JITP, you will also have to provide the path to your provisioning template
 and IoT policy, or modify the files provided in the config folder.
+
+During testing we noticed that some devices do not comply with the headers requirements of [[RFC7030](https://datatracker.ietf.org/doc/html/rfc7030)]. To avoid
+blocking you can disable the header checks from the config file. The responses provided by the EST server will still
+comply with the standard but the caller headers will be ignored. Note that WAF2 is also checking some headers. The rule
+requiring presence of the `User-Agent` header has been disabled but other rules might block.
+
 The other parameters are convenience:
 * Validity duration of generated certificates can be adjusted according to your policies
 * Names of important resources can be changed. This is particularly useful for the secrets in ACM which can only be deleted

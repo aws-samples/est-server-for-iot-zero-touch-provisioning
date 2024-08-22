@@ -116,8 +116,8 @@ class EstClient(object):
         Calls /cacerts endpoing and stores the certificate
         :returns: dict with response elements status_code, headers, content
         """
-        if not headers:
-            headers = {"Accept": "application/pkcs7-mime"}
+
+        headers = headers or {"Accept": "application/pkcs7-mime"}
         r = requests.get(self.est_url + "/cacerts", headers=headers,
                          cert=(self.mtls_cert_path, self.mtls_key_path),
                          verify=self.est_api_cert_path
@@ -139,8 +139,8 @@ class EstClient(object):
         Calls /csrattrs endpoint
         :returns: dict with response elements status_code, headers, content
         """
-        headers = headers or {"Accept": "*/*"}
-        r = requests.get(self.est_url + "/csrattrs", headers=headers,
+        r = requests.get(self.est_url + "/csrattrs",
+                         headers=headers or {"Accept": "*/*"},
                          cert=(self.mtls_cert_path, self.mtls_key_path),
                          verify=self.est_api_cert_path
                          )

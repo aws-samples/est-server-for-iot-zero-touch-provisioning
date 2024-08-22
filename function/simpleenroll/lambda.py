@@ -20,6 +20,7 @@ from customisations import pre_enroll, post_enroll
 
 CA_CERT_SECRET_ARN = os.environ['CA_CERT_SECRET_ARN']
 CA_KEY_SECRET_ARN = os.environ['CA_KEY_SECRET_ARN']
+STRICT_HEADERS_CHECK = os.environ.get('STRICT_HEADERS_CHECK', 'false').lower() == 'true'
 
 
 def enroll(csr: CertificateSigningRequest, csr_data: dict) -> str or None:
@@ -40,7 +41,7 @@ def lambda_handler(event, context):
     """
     cmn.logger.debug("Event: {}".format(event))
     try:
-        if cmn.validate_enroll_request(event) is not True:
+        if STRICT_HEADERS_CHECK is not False and cmn.validate_enroll_request(event) is not True:
             return cmn.error400("request validation failed")
         csr_str = cmn.extract_csr(event)
         if not csr_str:
