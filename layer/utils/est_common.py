@@ -88,15 +88,17 @@ def success200_json(body) -> dict:
     }
 
 
-def success200_cert(cert: str) -> dict:
+def success200_cert(cert: bytes or str) -> dict:
     # Do not log anything for privacy & security reasons
+    if isinstance(cert, str):
+        cert = cert.encode("utf-8")
     return {
         "statusCode": 200,
         "headers": {
             "Content-Type": "application/pkcs7-mime",
             "Content-Transfer-Encoding": "base64"
         },
-        "body": base64.b64encode(cert.encode("utf-8"))
+        "body": base64.b64encode(cert)
     }
 
 
@@ -204,7 +206,7 @@ def validate_csr(csr: str) -> tuple[dict or None, x509.base.CertificateSigningRe
         return None, None
 
 
-def create_self_signed_root_ca(attributes: dict, validity_years: int) -> tuple[x509.base.Certificate,  rsa.RSAPrivateKey]:
+def create_self_signed_root_ca(attributes: dict, validity_years: int) -> tuple[x509.base.Certificate, rsa.RSAPrivateKey]:
     """
     Generates a self-signed Root CA.
     :param attributes:
@@ -336,7 +338,7 @@ def is_key(key: str) -> bool:
 
 
 def sign_thing_csr(csr: x509.base.CertificateSigningRequest, csr_data: dict, ca_cert_secret_arn: str,
-                   ca_key_secret_arn: str) -> str or None:
+                   ca_key_secret_arn: str) -> x509.base.Certificate or None:
     """
     Sign a new CSR with own or external CA.
     Important: for external CA you must implement the function `sign_externally`
@@ -372,7 +374,7 @@ def sign_thing_csr(csr: x509.base.CertificateSigningRequest, csr_data: dict, ca_
             validity_years=1
         )
         logger.info("Signed a new certificate for: {}".format(csr_data))
-        return signed_cert.public_bytes(encoding=serialization.Encoding.PEM).decode("utf-8")
+        return signed_cert
 
 
 def register_certificate_with_iot_core(cert: str, thing_name: str, iot_policy_name: str) -> bool:
@@ -433,3 +435,22 @@ def private_key_to_pem(key: rsa.RSAPrivateKey) -> str:
         format=serialization.PrivateFormat.PKCS8,
         encryption_algorithm=serialization.NoEncryption(),
     ).decode("utf-8")
+
+
+def cert_to_der(cert: x509.base.Certificate) -> bytes:
+    """
+    Convert a certificate object to DER format
+    :param cert: cert object
+    :return: bytes
+    """
+    return cert.public_bytes(encoding=serialization.Encoding.DER)
+
+
+def pem_to_der_for_cert(pem_cert: str) -> bytes:
+    """
+    Converts a PEM certificate to DER format
+    :param pem_cert:
+    :return:
+    """
+    cert = load_pem_x509_certificate(pem_cert.encode('utf-8'))
+    return cert_to_der(cert)

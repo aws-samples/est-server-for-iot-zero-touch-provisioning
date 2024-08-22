@@ -23,6 +23,7 @@ in just a few minutes. We will go in details in the next sections, but for now l
     * [You already have a CA Trust Chain for mTLS and you use an external PKI for signing the devices](#you-already-have-a-ca-trust-chain-for-mtls-and-you-use-an-external-pki-for-signing-the-devices)
     * [Pro-tips](#pro-tips)
     * [About re-enrollment](#about-re-enrollment)
+    * [About the device CSR](#about-the-device-csr)
   * [Setting-up your environment](#setting-up-your-environment)
     * [Pre-requisites](#pre-requisites)
     * [Clone the repo](#clone-the-repo)
@@ -134,6 +135,13 @@ fail if the new certificate has not been associated with the matching IoT Thing.
 This application makes an attempt to find a matching IoT Thing and attach the new certificate to it. Of course, if this
 EST server is not hosted in the same account and the IoT Things, it will fail (without raising an Exception). You will
 then have to figure out how to do that!
+
+### About the device CSR
+The subject of the CSR submitted to the enrollment or reenrollment edpoints MUST contain a commonName (CN) and 
+serialNumber. The code checks for presence and will return an exception (400) if any is missing.
+If you enable JITP the provisioning template will use the CN as the ThingName and the serialNumber will be added as a 
+Thing attribute. You can change that in the provisioning template you will use but the code will still check
+that CN and serial Number are present int he CSR Subject.
 
 ## Setting-up your environment
 

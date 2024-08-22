@@ -123,12 +123,13 @@ class EstClient(object):
                          verify=self.est_api_cert_path
                          )
         r.raise_for_status()  # Raises an exception for 4xx and 5xx
-        cert = b64.b64decode(r.content)
+        der_cert = b64.b64decode(r.content)
+        self.iot_ca_cert = x509.load_der_x509_certificate(der_cert)
+        cert = self.iot_ca_cert.public_bytes(encoding=serialization.Encoding.PEM).decode('utf-8')
         with open(self.iot_ca_cert_path, "w") as f:
-            f.write(cert.decode('utf-8'))
-        self.iot_ca_cert = load_pem_x509_certificate(b64.b64decode(r.content))
+            f.write(cert)
         return {
-            "crt_pem": self.iot_ca_cert.public_bytes(encoding=serialization.Encoding.PEM).decode("utf-8"),
+            "crt_pem": cert,
             "status_code": r.status_code,
             "headers": r.headers,
             "content": r.content
@@ -225,8 +226,9 @@ class EstClient(object):
         """
         r = self._enrollment_call(headers, content, "/simpleenroll")
         if r.status_code == 200:
-            crt_pem = b64.b64decode(r.content).decode('utf-8')
-            self.iot_device_cert = load_pem_x509_certificate(b64.b64decode(r.content))
+            der_cert = b64.b64decode(r.content)
+            self.iot_device_cert = x509.load_der_x509_certificate(der_cert)
+            crt_pem = self.iot_ca_cert.public_bytes(encoding=serialization.Encoding.PEM).decode('utf-8')
             if verify_cert(self.iot_device_cert, self.iot_ca_cert) is not True:
                 raise Exception("Device Certificate verification against PKI CA failed")
         else:
@@ -247,8 +249,9 @@ class EstClient(object):
         self.make_csr()
         r = self._enrollment_call(headers, content, "/simplereenroll")
         if r.status_code == 200:
-            crt_pem = b64.b64decode(r.content).decode('utf-8')
-            self.iot_device_cert = load_pem_x509_certificate(b64.b64decode(r.content))
+            der_cert = b64.b64decode(r.content)
+            self.iot_device_cert = x509.load_der_x509_certificate(der_cert)
+            crt_pem = self.iot_ca_cert.public_bytes(encoding=serialization.Encoding.PEM).decode('utf-8')
             if verify_cert(self.iot_device_cert, self.iot_ca_cert) is not True:
                 raise Exception("Device Certificate verification against PKI CA failed")
         else:
