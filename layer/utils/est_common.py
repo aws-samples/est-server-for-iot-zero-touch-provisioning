@@ -20,11 +20,12 @@ import os
 import base64
 import boto3
 from cryptography import x509
-from cryptography.x509 import load_pem_x509_csr
+from cryptography.x509 import load_der_x509_csr
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.serialization import pkcs7
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from cryptography.hazmat.primitives.asymmetric import rsa
 import datetime
@@ -95,7 +96,7 @@ def success200_cert(cert: bytes or str) -> dict:
     return {
         "statusCode": 200,
         "headers": {
-            "Content-Type": "application/pkcs7-mime",
+            "Content-Type": "application/pkcs7-mime;smime-type=certs-only",
             "Content-Transfer-Encoding": "base64"
         },
         "body": base64.b64encode(cert)
@@ -164,20 +165,20 @@ def validate_enroll_request(event) -> bool:
 
 def extract_csr(event) -> bytes or None:
     """
-    This function extracts the csr from the event
+    This function extracts the csr from the event - the CSR is in DER format
     :param event:
     :return: csr
     """
     csr = None
     try:
-        csr = base64.b64decode(event['body']).decode('utf-8')
+        csr = base64.b64decode(event['body'])
     except Exception as e:
         logger.error(f"Error decoding CSR: {e}")
     finally:
         return csr
 
 
-def validate_csr(csr: str) -> tuple[dict or None, x509.base.CertificateSigningRequest or None]:
+def validate_csr(csr: bytes) -> tuple[dict or None, x509.base.CertificateSigningRequest or None]:
     """
     This function validates the CSR contains the right elements. it expects the Serial Number (SN) field to contain the
     device serial number and the Common Name (CN) filed to contain a combination of the AWS IoT Thing Serial Number and
@@ -186,7 +187,7 @@ def validate_csr(csr: str) -> tuple[dict or None, x509.base.CertificateSigningRe
     :return tuple: ({"thingName": string,"serialNumber": string}, certificate object)
     """
     try:
-        req = load_pem_x509_csr(csr.encode('utf-8'))
+        req = load_der_x509_csr(csr)
         cn = req.subject.get_attributes_for_oid(NameOID.COMMON_NAME)
         if not len(cn) > 0:
             raise Exception("No common name found in CSR")
@@ -437,20 +438,20 @@ def private_key_to_pem(key: rsa.RSAPrivateKey) -> str:
     ).decode("utf-8")
 
 
-def cert_to_der(cert: x509.base.Certificate) -> bytes:
+def cert_to_pkcs7_der(certs: list[x509.base.Certificate]) -> bytes:
     """
     Convert a certificate object to DER format
-    :param cert: cert object
+    :param certs: cert object
     :return: bytes
     """
-    return cert.public_bytes(encoding=serialization.Encoding.DER)
+    return pkcs7.serialize_certificates(certs, serialization.Encoding.DER)
 
 
-def pem_to_der_for_cert(pem_cert: str) -> bytes:
+def pem_cert_to_pkcs7_der(pem_cert: str) -> bytes:
     """
     Converts a PEM certificate to DER format
     :param pem_cert:
     :return:
     """
     cert = load_pem_x509_certificate(pem_cert.encode('utf-8'))
-    return cert_to_der(cert)
+    return cert_to_pkcs7_der([cert])

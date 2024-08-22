@@ -40,5 +40,5 @@ def lambda_handler(event, context):
         return cmn.error500("Failed to retrieve the certificate")
 
     cmn.logger.debug("Returning certificate from secret ARN {} to caller".format(CA_CERT_SECRET_ARN))
-    return cmn.success200_cert(cmn.pem_to_der_for_cert(cert))
+    return cmn.success200_cert(cmn.pem_cert_to_pkcs7_der(cert))
 

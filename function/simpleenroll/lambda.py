@@ -33,7 +33,7 @@ def enroll(csr: CertificateSigningRequest, csr_data: dict) -> bytes or None:
     cert = cmn.sign_thing_csr(csr=csr, csr_data=csr_data, ca_cert_secret_arn=CA_CERT_SECRET_ARN,
                                   ca_key_secret_arn=CA_KEY_SECRET_ARN)
     if cert:
-        return cmn.cert_to_der(cert)
+        return cmn.cert_to_pkcs7_der([cert])
     else:
         return None
 

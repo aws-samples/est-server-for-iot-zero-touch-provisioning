@@ -44,7 +44,7 @@ def reenroll(csr: CertificateSigningRequest, csr_data: dict) -> str or None:
                               ca_key_secret_arn=CA_KEY_SECRET_ARN)
     if cert:
         pem_cert = cmn.cert_to_pem(cert)
-        der_cert = cmn.cert_to_der(cert)
+        der_cert = cmn.cert_to_pkcs7_der([cert])
         _ = cmn.register_certificate_with_iot_core(pem_cert, csr_data['thingName'], IOT_POLICY_NAME)
         return der_cert
     else:
