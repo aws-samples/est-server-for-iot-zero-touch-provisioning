@@ -40,6 +40,15 @@ export class EstServerForAwsIotStack extends cdk.Stack {
             compatibleArchitectures: [cdk.aws_lambda.Architecture.X86_64]
         });
 
+        // Create the custom secret with dummy value
+        const customSecret = new cdk.aws_secretsmanager.Secret(this,"customSecret", {
+            encryptionKey: secretsEncryptionKey,
+            secretName: estConfig.Properties.customSecretName,
+            secretObjectValue: {
+                key: cdk.SecretValue.unsafePlainText("dummy")
+            },
+        });
+
        // Register the IoT CA and configure JITP if enabled
         const iot_ca = new IotRootCa(this, "iotRootCa", {
             encryptionKey: encryptionKey,
@@ -106,6 +115,7 @@ export class EstServerForAwsIotStack extends cdk.Stack {
                     CA_CERT_SECRET_ARN: iot_ca.iotCoreCaCertSecret.secretArn,
                     CA_KEY_SECRET_ARN: iot_ca.iotCoreCaKeySecret.secretArn,
                     STRICT_HEADERS_CHECK: strictHeadersCheck.toString(),
+                    CUSTOM_SECRET_ARN: customSecret.secretArn,
                 },
                 timeout: cdk.Duration.seconds(10),
             }
@@ -113,6 +123,8 @@ export class EstServerForAwsIotStack extends cdk.Stack {
         iot_ca.iotCoreCaCertSecret.grantRead(ld_simpleenroll.lambda)
         iot_ca.iotCoreCaKeySecret.grantRead(ld_simpleenroll.lambda)
         secretsEncryptionKey.grantDecrypt(ld_simpleenroll.lambda)
+        customSecret.grantRead(ld_simpleenroll.lambda)
+        customSecret.grantWrite(ld_simpleenroll.lambda)
 
        const ld_simplereenroll = new MakeLambda(this, "lambda_simplereenroll",
             {
@@ -126,6 +138,7 @@ export class EstServerForAwsIotStack extends cdk.Stack {
                     CA_KEY_SECRET_ARN: iot_ca.iotCoreCaKeySecret.secretArn,
                     IOT_POLICY_NAME: estConfig.Properties.iotPolicyName,
                     STRICT_HEADERS_CHECK: strictHeadersCheck.toString(),
+                    CUSTOM_SECRET_ARN: customSecret.secretArn,
                 },
                 timeout: cdk.Duration.seconds(10),
             }
@@ -133,6 +146,8 @@ export class EstServerForAwsIotStack extends cdk.Stack {
         iot_ca.iotCoreCaCertSecret.grantRead(ld_simplereenroll.lambda)
         iot_ca.iotCoreCaKeySecret.grantRead(ld_simplereenroll.lambda)
         secretsEncryptionKey.grantDecrypt(ld_simplereenroll.lambda)
+        customSecret.grantRead(ld_simplereenroll.lambda)
+        customSecret.grantWrite(ld_simplereenroll.lambda)
 
         // Policy allowing attaching a renewed certification to a Thing
         const reenrollmentPolicy = new cdk.aws_iam.PolicyStatement({
@@ -309,6 +324,18 @@ export class EstServerForAwsIotStack extends cdk.Stack {
             ],
             true,
         );
+
+        NagSuppressions.addResourceSuppressions(
+            customSecret,
+            [
+                {
+                    id: "AwsSolutions-SMG4",
+                    reason: "This is a customer-managed secret that doesn't need rotation.",
+                },
+            ],
+            true,
+        );
+
     }
 }
 

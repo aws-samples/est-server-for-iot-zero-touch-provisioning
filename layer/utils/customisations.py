@@ -12,8 +12,11 @@ reenrollment happens. You can implement your custom logic in these functions. Re
 successful or false otherwise. Do not change the name of these functions either.
 
 """
-
+import os
+import json
 from cryptography import x509
+import boto3
+
 # from cryptography.hazmat.primitives import serialization
 
 
@@ -33,6 +36,12 @@ def sign_device_csr_with_external_pki(csr: x509.base.CertificateSigningRequest, 
     # csr_bytes = csr.public_bytes(encoding=serialization.Encoding.PEM)
     # convert the csr object to string:
     # csr_str = csr.public_bytes(encoding=serialization.Encoding.PEM).decode("utf-8")
+
+    # get the custom secret (dict with your key:value):
+    secret_client = boto3.client('secretsmanager')  # Usually not in function but acceptable in this use case
+    custom_secret_arn = os.environ.get('CUSTOM_SECRET_ARN', None)
+    if custom_secret_arn:
+        custom_secret = json.loads(secret_client.get_secret_value(SecretId=custom_secret_arn)['SecretString'])
 
     raise NotImplementedError("Signing a CSR externally is not implemented")
 
@@ -71,6 +80,3 @@ def post_reenroll(event) -> bool:
     :return: True or False
     """
     return True
-
-
-

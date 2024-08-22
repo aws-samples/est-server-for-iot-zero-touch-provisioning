@@ -25,6 +25,8 @@ export interface EstConfig {
         iotPolicyName: NonNullable<string>
         // Lambda functions (applies to all, can be modified individually with function environment variable)
         lambdaLoggerLevel: NonNullable<string>
+        // Customization
+        customSecretName: NonNullable<string>
     },
     DeploymentOptions: {
         // mTLS Truststore certificate chain - generated if ""

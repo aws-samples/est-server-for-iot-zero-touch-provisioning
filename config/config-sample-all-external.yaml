@@ -23,6 +23,8 @@ Properties:
   iotPolicyName: "est_iot_policy_default"
   # Lambda functions (applies to all, can be modified individually with function environment variable)
   lambdaLoggerLevel: "INFO"
+  # Customization
+  customSecretName: "customSecret"
 
 DeploymentOptions:
   # mTLS Truststore certificate chain - generated if ""
