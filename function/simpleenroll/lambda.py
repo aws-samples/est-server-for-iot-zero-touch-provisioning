@@ -23,21 +23,25 @@ CA_KEY_SECRET_ARN = os.environ['CA_KEY_SECRET_ARN']
 STRICT_HEADERS_CHECK = os.environ.get('STRICT_HEADERS_CHECK', 'false').lower() == 'true'
 
 
-def enroll(csr: CertificateSigningRequest, csr_data: dict) -> str or None:
+def enroll(csr: CertificateSigningRequest, csr_data: dict) -> bytes or None:
     """
     This is the function that generates the certificate for an IoT device.
     :param csr: The Certificate Signing Request object
     :param csr_data: The parsed CSR data
-    :return str: The PEM encoded signed certificate
+    :return bytes: The DER encoded signed certificate
     """
-    return cmn.sign_thing_csr(csr=csr, csr_data=csr_data, ca_cert_secret_arn=CA_CERT_SECRET_ARN,
-                              ca_key_secret_arn=CA_KEY_SECRET_ARN)
+    cert = cmn.sign_thing_csr(csr=csr, csr_data=csr_data, ca_cert_secret_arn=CA_CERT_SECRET_ARN,
+                                  ca_key_secret_arn=CA_KEY_SECRET_ARN)
+    if cert:
+        return cmn.cert_to_pkcs7_der([cert])
+    else:
+        return None
 
 
 def lambda_handler(event, context):
     """
     Return a new signed CSR after executing pre-enroll and post-enroll custom actions
-
+    The expected Certificate format is DER
     """
     cmn.logger.debug("Event: {}".format(event))
     try:

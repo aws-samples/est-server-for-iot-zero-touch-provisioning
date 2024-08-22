@@ -23,6 +23,7 @@ from cryptography.x509 import load_pem_x509_certificate
 from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.serialization import pkcs7
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from cryptography.hazmat.primitives.asymmetric import rsa
 import base64 as b64
@@ -52,7 +53,8 @@ class EstClient(object):
     /simplereenroll
     """
 
-    def __init__(self, thing_name: str, est_api_domain: str, est_api_cert: str, mtls_cert_pem: str, mtls_key_pem: str):
+    def __init__(self, thing_name: str, est_api_domain: str, est_api_cert: str,
+                 mtls_cert_pem: str, mtls_key_pem: str, save_to_temp: bool = True):
         """
 
         :param thing_name: the Thing name
@@ -67,11 +69,20 @@ class EstClient(object):
         self.est_url = "https://{}/.well-known/est".format(est_api_domain)
         self.mtls_cert = load_pem_x509_certificate(mtls_cert_pem.encode('utf-8'))
         self.mtls_key = load_pem_private_key(mtls_key_pem.encode('utf-8'), password=None)
+        self.save_to_temp = save_to_temp
         self.iot_ca_cert = None
         self.csrattrs = None
         self.iot_device_key = None
         self.iot_device_csr = None
         self.iot_device_cert = None
+        self.files_base_path = "./temp"
+        os.makedirs(self.files_base_path, exist_ok=True)
+        self.est_api_cert_path = self.files_base_path + "/api_ca_cert.pem"
+        self.mtls_cert_path = self.files_base_path + "/mtls_cert.crt"
+        self.mtls_key_path = self.files_base_path + "/mtls_key.key"
+        self.iot_device_csr_path = self.files_base_path + "/iot_device.csr"
+        self.iot_device_key_path = self.files_base_path + "/iot_device.key"
+
         self.make_csr()
         self.default_headers = {
             "Accept": "*/*",
@@ -80,11 +91,6 @@ class EstClient(object):
             "Content-Disposition": "attachment",
         }
         # Store secrets in files because of Requests accepting only file strings
-        self.files_base_path = "./temp"
-        os.makedirs(self.files_base_path, exist_ok=True)
-        self.est_api_cert_path = self.files_base_path + "/api_ca_cert.pem"
-        self.mtls_cert_path = self.files_base_path + "/mtls_cert.crt"
-        self.mtls_key_path = self.files_base_path + "/mtls_key.key"
         with open(self.est_api_cert_path, 'w') as f:
             f.write(est_api_cert)
         with open(self.mtls_cert_path, 'w') as f:
@@ -123,12 +129,13 @@ class EstClient(object):
                          verify=self.est_api_cert_path
                          )
         r.raise_for_status()  # Raises an exception for 4xx and 5xx
-        cert = b64.b64decode(r.content)
+        pkcs7_certs = pkcs7.load_der_pkcs7_certificates(b64.b64decode(r.content))
+        self.iot_ca_cert = pkcs7_certs[0]
+        cert = self.iot_ca_cert.public_bytes(encoding=serialization.Encoding.PEM).decode('utf-8')
         with open(self.iot_ca_cert_path, "w") as f:
-            f.write(cert.decode('utf-8'))
-        self.iot_ca_cert = load_pem_x509_certificate(b64.b64decode(r.content))
+            f.write(cert)
         return {
-            "crt_pem": self.iot_ca_cert.public_bytes(encoding=serialization.Encoding.PEM).decode("utf-8"),
+            "crt_pem": cert,
             "status_code": r.status_code,
             "headers": r.headers,
             "content": r.content
@@ -207,9 +214,14 @@ class EstClient(object):
             critical=False,
         ).sign(self.iot_device_key, hashes.SHA256())
 
+        # Store
+        if self.save_to_temp is True:
+            with open(self.iot_device_csr_path, "w") as f:
+                f.write(self.iot_device_csr.public_bytes(encoding=serialization.Encoding.PEM).decode('utf-8'))
+
     def _enrollment_call(self, headers: dict or None, content: bytes, api_endpoint: str) -> requests.models.Response:
         if not content:
-            content = base64.b64encode(self.iot_device_csr.public_bytes(encoding=serialization.Encoding.PEM))
+            content = base64.b64encode(self.iot_device_csr.public_bytes(encoding=serialization.Encoding.DER))
         r = requests.post(self.est_url + api_endpoint,
                           headers=headers or self.default_headers,
                           data=content,
@@ -225,8 +237,9 @@ class EstClient(object):
         """
         r = self._enrollment_call(headers, content, "/simpleenroll")
         if r.status_code == 200:
-            crt_pem = b64.b64decode(r.content).decode('utf-8')
-            self.iot_device_cert = load_pem_x509_certificate(b64.b64decode(r.content))
+            pkcs7_certs = pkcs7.load_der_pkcs7_certificates(b64.b64decode(r.content))
+            self.iot_device_cert = pkcs7_certs[0]
+            crt_pem = self.iot_ca_cert.public_bytes(encoding=serialization.Encoding.PEM).decode('utf-8')
             if verify_cert(self.iot_device_cert, self.iot_ca_cert) is not True:
                 raise Exception("Device Certificate verification against PKI CA failed")
         else:
@@ -247,8 +260,9 @@ class EstClient(object):
         self.make_csr()
         r = self._enrollment_call(headers, content, "/simplereenroll")
         if r.status_code == 200:
-            crt_pem = b64.b64decode(r.content).decode('utf-8')
-            self.iot_device_cert = load_pem_x509_certificate(b64.b64decode(r.content))
+            pkcs7_certs = pkcs7.load_der_pkcs7_certificates(b64.b64decode(r.content))
+            self.iot_device_cert = pkcs7_certs[0]
+            crt_pem = self.iot_ca_cert.public_bytes(encoding=serialization.Encoding.PEM).decode('utf-8')
             if verify_cert(self.iot_device_cert, self.iot_ca_cert) is not True:
                 raise Exception("Device Certificate verification against PKI CA failed")
         else:
@@ -332,7 +346,6 @@ class IotClient(object):
             self.private_key = self.est_client.iot_key_bytes
             if save:
                 save_to_disk("temp/iot_device.crt", self.certificate.decode('utf-8'))
-                save_to_disk("./temp/iot_device.key", self.private_key.decode('utf-8'))
             return True
         else:
             return False
@@ -450,9 +463,9 @@ class IotClient(object):
             self.certificate = self.est_client.iot_cert_bytes
             self.private_key = self.est_client.iot_key_bytes
             if save:
-                save_to_disk("temp/iot_device_prev.crt", self.certificate_prev.decode('utf-8'))
+                save_to_disk("./temp/iot_device_prev.crt", self.certificate_prev.decode('utf-8'))
                 save_to_disk("./temp/iot_device_prev.key", self.private_key_prev.decode('utf-8'))
-                save_to_disk("temp/iot_device.crt", self.certificate.decode('utf-8'))
+                save_to_disk("./temp/iot_device.crt", self.certificate.decode('utf-8'))
                 save_to_disk("./temp/iot_device.key", self.private_key.decode('utf-8'))
             print("Device Cert and Key updated")
         return r
