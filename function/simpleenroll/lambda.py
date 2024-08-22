@@ -16,18 +16,11 @@
 import os
 import est_common as cmn
 from cryptography.x509.base import CertificateSigningRequest
+from customisations import pre_enroll, post_enroll
 
 CA_CERT_SECRET_ARN = os.environ['CA_CERT_SECRET_ARN']
 CA_KEY_SECRET_ARN = os.environ['CA_KEY_SECRET_ARN']
-
-
-def pre_enroll(event) -> bool:
-    """
-    This is the first function that is called when enrollment happens before the certificate is generated
-    :param event:
-    :return:
-    """
-    return True
+STRICT_HEADERS_CHECK = os.environ.get('STRICT_HEADERS_CHECK', 'false').lower() == 'true'
 
 
 def enroll(csr: CertificateSigningRequest, csr_data: dict) -> str or None:
@@ -41,15 +34,6 @@ def enroll(csr: CertificateSigningRequest, csr_data: dict) -> str or None:
                               ca_key_secret_arn=CA_KEY_SECRET_ARN)
 
 
-def post_enroll(event) -> bool:
-    """
-    This is the last function that is called when enrollment happens after the certificate is generated
-    :param event:
-    :return:
-    """
-    return True
-
-
 def lambda_handler(event, context):
     """
     Return a new signed CSR after executing pre-enroll and post-enroll custom actions
@@ -57,7 +41,7 @@ def lambda_handler(event, context):
     """
     cmn.logger.debug("Event: {}".format(event))
     try:
-        if cmn.validate_enroll_request(event) is not True:
+        if STRICT_HEADERS_CHECK is not False and cmn.validate_enroll_request(event) is not True:
             return cmn.error400("request validation failed")
         csr_str = cmn.extract_csr(event)
         if not csr_str:

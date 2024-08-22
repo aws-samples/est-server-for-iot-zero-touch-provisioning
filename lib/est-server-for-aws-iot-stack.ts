@@ -27,6 +27,9 @@ export class EstServerForAwsIotStack extends cdk.Stack {
         const secretsEncryptionKey = common.secretsEncryptionKey
         const accessLogsBucket = common.accessLogsS3Bucket;
 
+        // Useful constants
+        const strictHeadersCheck = estConfig.Properties.apiStrictHeadersCheck;
+
         // Create the Lambda layers containing reusable functions
         const CommonLambdaLayer = new python.PythonLayerVersion(this, "est-layer-utils" + id, {
             layerVersionName: "est-layer-utils",
@@ -55,11 +58,13 @@ export class EstServerForAwsIotStack extends cdk.Stack {
                 layers: [CommonLambdaLayer],
                 environment: {
                     LOG_LEVEL: estConfig.Properties.lambdaLoggerLevel,
-                    AMAZON_IOT_CA_URL: "https://www.amazontrust.com/repository/AmazonRootCA1.pem",
+                    CA_CERT_SECRET_ARN: iot_ca.iotCoreCaCertSecret.secretArn,
+                    STRICT_HEADERS_CHECK: strictHeadersCheck.toString(),
                     },
                 timeout: cdk.Duration.seconds(10),
             }
         );
+        iot_ca.iotCoreCaCertSecret.grantRead(ld_cacerts.lambda)
         secretsEncryptionKey.grantDecrypt(ld_cacerts.lambda)
 
         const ld_csrattrs = new MakeLambda(this, "lambda_csrattrs",
@@ -68,7 +73,10 @@ export class EstServerForAwsIotStack extends cdk.Stack {
                 encryptionKey: encryptionKey,
                 entry: "function/csrattrs/",
                 layers: [CommonLambdaLayer],
-                environment: {LOG_LEVEL: estConfig.Properties.lambdaLoggerLevel},
+                environment: {
+                    LOG_LEVEL: estConfig.Properties.lambdaLoggerLevel,
+                    STRICT_HEADERS_CHECK: strictHeadersCheck.toString(),
+                },
                 timeout: cdk.Duration.seconds(10),
             }
         );
@@ -79,7 +87,10 @@ export class EstServerForAwsIotStack extends cdk.Stack {
                 encryptionKey: encryptionKey,
                 entry: "function/serverkeygen/",
                 layers: [CommonLambdaLayer],
-                environment: {LOG_LEVEL: estConfig.Properties.lambdaLoggerLevel},
+                environment: {
+                    LOG_LEVEL: estConfig.Properties.lambdaLoggerLevel,
+                    STRICT_HEADERS_CHECK: strictHeadersCheck.toString(),
+                },
                 timeout: cdk.Duration.seconds(10),
             }
         );
@@ -93,7 +104,8 @@ export class EstServerForAwsIotStack extends cdk.Stack {
                 environment: {
                     LOG_LEVEL: estConfig.Properties.lambdaLoggerLevel,
                     CA_CERT_SECRET_ARN: iot_ca.iotCoreCaCertSecret.secretArn,
-                    CA_KEY_SECRET_ARN: iot_ca.iotCoreCaKeySecret.secretArn
+                    CA_KEY_SECRET_ARN: iot_ca.iotCoreCaKeySecret.secretArn,
+                    STRICT_HEADERS_CHECK: strictHeadersCheck.toString(),
                 },
                 timeout: cdk.Duration.seconds(10),
             }
@@ -112,7 +124,8 @@ export class EstServerForAwsIotStack extends cdk.Stack {
                     LOG_LEVEL: estConfig.Properties.lambdaLoggerLevel,
                     CA_CERT_SECRET_ARN: iot_ca.iotCoreCaCertSecret.secretArn,
                     CA_KEY_SECRET_ARN: iot_ca.iotCoreCaKeySecret.secretArn,
-                    IOT_POLICY_NAME: estConfig.Properties.iotPolicyName
+                    IOT_POLICY_NAME: estConfig.Properties.iotPolicyName,
+                    STRICT_HEADERS_CHECK: strictHeadersCheck.toString(),
                 },
                 timeout: cdk.Duration.seconds(10),
             }
@@ -154,10 +167,10 @@ export class EstServerForAwsIotStack extends cdk.Stack {
 
         // API resources & methods
         const PostReqParams = {
-                    'method.request.header.Accept': true,
-                    'method.request.header.Content-Type': true,
-                    'method.request.header.Content-Transfer-Encoding': true,
-                    'method.request.header.Content-Disposition': true,
+                    'method.request.header.Accept': strictHeadersCheck,
+                    'method.request.header.Content-Type': strictHeadersCheck,
+                    'method.request.header.Content-Transfer-Encoding': strictHeadersCheck,
+                    'method.request.header.Content-Disposition': strictHeadersCheck,
                     'method.request.querystring.tenant-id': false
                 }
 
@@ -180,7 +193,7 @@ export class EstServerForAwsIotStack extends cdk.Stack {
     {
                 requestValidator: requestValidator,
                 requestParameters: {
-                    'method.request.header.Accept': true,
+                    'method.request.header.Accept': strictHeadersCheck,
                 }
             });
 

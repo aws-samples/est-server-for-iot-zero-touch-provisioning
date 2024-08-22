@@ -29,6 +29,7 @@ from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from cryptography.hazmat.primitives.asymmetric import rsa
 import datetime
 import time
+from customisations import sign_device_csr_with_external_pki
 
 logging.basicConfig(stream=sys.stdout)
 logger = logging.getLogger('myLambda')
@@ -257,13 +258,16 @@ def create_self_signed_root_ca(attributes: dict, validity_years: int) -> tuple[x
     ).add_extension(
         x509.SubjectKeyIdentifier.from_public_key(root_key.public_key()),
         critical=False,
+    ).add_extension(
+        x509.AuthorityKeyIdentifier.from_issuer_public_key(root_key.public_key()),
+        critical=False,
     ).sign(root_key, hashes.SHA256())
 
     return root_ca_cert, root_key
 
 
 def sign_csr_with_own_ca(csr: x509.base.CertificateSigningRequest, root_cert: x509.base.Certificate,
-                         root_key: rsa.RSAPrivateKey, validity_years: int = 10):
+                         root_key: rsa.RSAPrivateKey, validity_years: int = 10) -> x509.base.Certificate or None:
     """
     Sign the CSR with the self-signed Root CA
     :param validity_years:
@@ -273,6 +277,7 @@ def sign_csr_with_own_ca(csr: x509.base.CertificateSigningRequest, root_cert: x5
     :return: Certificate object
     """
     try:
+        ski_ext = root_cert.extensions.get_extension_for_class(x509.SubjectKeyIdentifier)
         client_cert = x509.CertificateBuilder().subject_name(
             csr.subject
         ).issuer_name(
@@ -286,6 +291,12 @@ def sign_csr_with_own_ca(csr: x509.base.CertificateSigningRequest, root_cert: x5
         ).not_valid_after(
             # Our certificate will be valid for 10 years
             datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=365 * validity_years)
+        ).add_extension(
+            x509.SubjectKeyIdentifier.from_public_key(csr.public_key()),
+            critical=False,
+        ).add_extension(
+            x509.AuthorityKeyIdentifier.from_issuer_subject_key_identifier(ski_ext.value),
+            critical=False,
         ).sign(root_key, hashes.SHA256())
         return client_cert
     except Exception as e:
@@ -346,7 +357,7 @@ def sign_thing_csr(csr: x509.base.CertificateSigningRequest, csr_data: dict, ca_
     elif not is_key(key_str):
         # We don't have the key to sign the CSR, so we delegate to an external signing service
         logger.info("Delegating signature of the CSR")
-        return sign_externally(csr, csr_data)  # Must be implemented by end user
+        return sign_device_csr_with_external_pki(csr, csr_data)  # Must be implemented by end user
     elif cert_str == "":
         # We don't have a certificate which is unexpected since we have to register it in IoT Core
         logger.error("Missing Root Certificate for IoT Core in Secrets Manager")
@@ -362,21 +373,6 @@ def sign_thing_csr(csr: x509.base.CertificateSigningRequest, csr_data: dict, ca_
         )
         logger.info("Signed a new certificate for: {}".format(csr_data))
         return signed_cert.public_bytes(encoding=serialization.Encoding.PEM).decode("utf-8")
-
-
-def sign_externally(csr: x509.base.CertificateSigningRequest, csr_data: dict) -> str:
-    """
-    This is an example of how you could sign the certificate externally using a PKI
-    :param object csr: The Certificate Signing Request object
-    :param dict csr_data: The parsed CSR data see below
-    :return: PEM Formatted Certificate
-
-    csr_data = {
-            "thingName": equals common name (CN) from CSR,
-            "serialNumber": equals Serial number (SN) from CSR
-        }
-    """
-    raise NotImplementedError("Signing a CSR externally is not implemented")
 
 
 def register_certificate_with_iot_core(cert: str, thing_name: str, iot_policy_name: str) -> bool:
