@@ -29,6 +29,7 @@ export class EstServerForAwsIotStack extends cdk.Stack {
 
         // Useful constants
         const strictHeadersCheck = estConfig.Properties.apiStrictHeadersCheck;
+        const deviceCertValidityYears: number = estConfig.Properties.iotDeviceCertValidityYears;
 
         // Create the Lambda layers containing reusable functions
         const CommonLambdaLayer = new python.PythonLayerVersion(this, "est-layer-utils" + id, {
@@ -116,6 +117,7 @@ export class EstServerForAwsIotStack extends cdk.Stack {
                     CA_KEY_SECRET_ARN: iot_ca.iotCoreCaKeySecret.secretArn,
                     STRICT_HEADERS_CHECK: strictHeadersCheck.toString(),
                     CUSTOM_SECRET_ARN: customSecret.secretArn,
+                    DEVICE_CERT_VALIDITY_YEARS: deviceCertValidityYears.toString(),
                 },
                 timeout: cdk.Duration.seconds(10),
             }
@@ -139,6 +141,7 @@ export class EstServerForAwsIotStack extends cdk.Stack {
                     IOT_POLICY_NAME: estConfig.Properties.iotPolicyName,
                     STRICT_HEADERS_CHECK: strictHeadersCheck.toString(),
                     CUSTOM_SECRET_ARN: customSecret.secretArn,
+                    DEVICE_CERT_VALIDITY_YEARS: deviceCertValidityYears.toString(),
                 },
                 timeout: cdk.Duration.seconds(10),
             }

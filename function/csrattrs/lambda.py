@@ -24,4 +24,4 @@ def lambda_handler(event, context):
     :return: 
     """
     cmn.logger.debug("Event: {}".format(event))
-    return cmn.no_content204()
+    return cmn.no_content204(headers={"Content-Type": "application/csrattrs", "Content-Transfer-Encoding": "base64"})

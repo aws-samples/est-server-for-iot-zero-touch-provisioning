@@ -23,6 +23,7 @@ export interface EstConfig {
         iotTemplateName: NonNullable<string> // 36 characters max !!
         iotPolicyPath: NonNullable<string>
         iotPolicyName: NonNullable<string>
+        iotDeviceCertValidityYears: NonNullable<number>
         // Lambda functions (applies to all, can be modified individually with function environment variable)
         lambdaLoggerLevel: NonNullable<string>
         // Customization
