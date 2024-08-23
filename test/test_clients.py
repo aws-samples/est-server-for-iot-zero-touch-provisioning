@@ -366,7 +366,7 @@ class IotClient(object):
 
     def get_root_ca(self, save: bool = False) -> bool:
         try:
-            r = requests.get(IOT_CORE_CA_URL)
+            r = requests.get(IOT_CORE_CA_URL, timeout=20)
             self.root_ca = r.content
             if save is True:
                 save_to_disk("./temp/iot_core_root_ca.pem", self.root_ca.decode('utf-8'))
