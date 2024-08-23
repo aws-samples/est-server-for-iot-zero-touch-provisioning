@@ -1,0 +1,1 @@
+exclude_dirs: ['cdk.out', '.venv', 'do-not-track', 'node_modules']

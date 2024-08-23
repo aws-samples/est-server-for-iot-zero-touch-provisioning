@@ -71,7 +71,7 @@ class Test01EstServer(unittest.TestCase):
         """
         with self.assertRaises(requests.exceptions.ConnectionError) as cm:
             r = requests.get(url="https://{}/.well-known/est/cacerts".format(self.api_domain),
-                             headers={"Accept": "application/pkcs7-mime"})
+                             headers={"Accept": "application/pkcs7-mime"}, timeout=20)
         self.assertIsInstance(cm.exception, requests.exceptions.ConnectionError)
         self.assertEqual("Connection reset by peer", cm.exception.args[0].args[1].args[1])
 
@@ -272,7 +272,21 @@ def delete_thing(thing_name: str):
         if principal.startswith(cert_finger_print):
             certs.append(principal)
     print("Found certificates: {}".format(certs))
-    for cert in certs:
+    delete_certificates(thing_name, certs, iot_client)
+    iot_client.delete_thing(thingName=thing_name)
+    print("Thing {} deleted".format(thing_name))
+
+
+def delete_certificates(thing_name, certificates: list, iot_client: boto3.client):
+    """
+    Delete certificates and policies attached to a thing
+    :param certificates: list of certificate ARNs
+    :param thing_name:
+    :param certificates:
+    :param iot_client:
+    :return:
+    """
+    for cert in certificates:
         cert_id = cert.split('/')[1]
         policies = [p['policyName'] for p in iot_client.list_principal_policies(principal=cert)['policies']]
         for policy in policies:
@@ -288,4 +302,3 @@ def delete_thing(thing_name: str):
 
 if __name__ == "__main__":
     unittest.main()
-

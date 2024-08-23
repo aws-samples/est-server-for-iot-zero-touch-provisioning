@@ -5,7 +5,7 @@ a certificate without exposing any secret and without human intervention. It mak
 
 The EST Server has been developed to be compliant with [[RFC7030](https://datatracker.ietf.org/doc/html/rfc7030)] and it
 entirely "serverless".
-Note that *Implicit trust anchor* is not implemented. You'll have to use *the explicit trust anchor*, meaning 
+Note that *Explicit trust anchor* is not implemented. You'll have to use *the Implicit trust anchor*, meaning 
 that the EST server Certificate will have to be known in advance by the device.
 
 In addition, it provides features which will facilitate the management of IoT devices like enabling Just In Time 
@@ -116,17 +116,15 @@ You'll have to implement the interface to your PKI... do you like python3?
 1. If you copied the Provisioning Template input its new path/name in the configuration file
 1. Give a look at the IoT Policy `config/iot_policy_default.json`, make a copy and modify as necessary
 1. If you copied the IoT Policy input its new path/name in the configuration file
-1. Implement the interface to your PKI in the file [layer/utils/customisation.py](layer/utils/customisations.py)
-1. Deploy
+1. Open the file `layer/utils/est_common.py`
+   1. Find the function `sign_externally` - this is where you will implement the interface to your external PKI.
 
 ### Pro-tips
-You can customise certain phases of the EST by editing [layer/utils/customisation.py](layer/utils/customisations.py).
-Here are the available hooks:
-* Execute actions before enrollment
-* Execute actions after enrollment
-* Execute actions before reenrollment
-* Execute actions after reenrollment
-* Implement an interface to an external PKI for signing IoT Device CSR
+The lambda `function/simpleenroll/lambda.py` has `pre_enroll` and  `post_enroll` functions which are placeholders to 
+perform additional tasks. There you can, for example, check if a device is not in a forbidden list before signing it 
+CSR and record the transaction in a DB... or anything else you like.
+
+It is the same for `function/simplereenroll/lambda.py` with `pre_reenroll` and `post_reenroll`.
 
 ### About re-enrollment
 The first time a device obtains a certificates and connects to IoT Core, it will be enrolled automatically by JITP.
@@ -135,13 +133,6 @@ fail if the new certificate has not been associated with the matching IoT Thing.
 This application makes an attempt to find a matching IoT Thing and attach the new certificate to it. Of course, if this
 EST server is not hosted in the same account and the IoT Things, it will fail (without raising an Exception). You will
 then have to figure out how to do that!
-
-### About the device CSR
-The subject of the CSR submitted to the enrollment or reenrollment edpoints MUST contain a commonName (CN) and 
-serialNumber. The code checks for presence and will return an exception (400) if any is missing.
-If you enable JITP, the provisioning template will use the CN as the ThingName and the serialNumber will be added as a 
-Thing attribute. You can change that in the provisioning template you will use but the code will still check
-that CN and serialNumber are present in the CSR Subject.
 
 ## Setting-up your environment
 
@@ -174,7 +165,7 @@ You can also specify a custom configuration file location:
 ```bash
 cdk deploy --context configFile=my_custom_location/my_custom_config.yaml --all
 ```
-You can find more commands and options for `cdk` here: https://docs.aws.amazon.com/cdk/v2/guide/ref-cli-cmd.html
+You can find more commands nd options for `cdk` here: https://docs.aws.amazon.com/cdk/v2/guide/ref-cli-cmd.html
 
 ### IMPORTANT
 This application CDK uses two Lambda Triggers to deploy resources that need contextual information or cannot expose
@@ -194,9 +185,9 @@ This application is all about certificates and this can get confusing. So we nee
 confusion. There are three groups of certificates involved:
 
 ### Everything related to the IoT Operations
-We are here looking at IoT Core and the IoT Devices identification. The main purpose of an EST Server is "securely 
-delivering certificates to clients" so they can start doing their job securely. When we will discuss this part of the  
-application we will refer to it with the word "device" and/or "IoT". 
+We are here looking at IoT Core and the IoT Devices identification. The main purpose of an EST Server is "delivering
+certificates to IoT devices" so they can start doing their job securely. When we will discuss this part of the application 
+we will refer to it with the word "device" and/or "IoT". 
 To operate securely IoT Core needs Certificate Authority (CA) registered. Then the IoT device can send a 
 Certificate Signing Request (CSR) to receive in return a *Device Certificate* signed by the CA that was registered in IoT Core.
 Note that it doesn't mean that the signature is effectively done by IoT Core. We'll get back to this later.
@@ -223,7 +214,7 @@ And this is not to be confused with the *Device Certificate* used for the IoT op
 
 ### Features
 The main goal of this code sample is to easily deploy an EST Server, a service which is capable of:
-* Providing the current CA Certificate of the mTLS handshake verification by the client.
+* Providing the current CA Certificate of the IoT Service (IoT Core in our case).
 * Signing a CSR and returning the corresponding Certificate to an IoT Device for a first enrollment and a certificate 
 renewal.
 
@@ -274,6 +265,10 @@ The CDK code uses [cdk-nag library](https://github.com/cdklabs/cdk-nag) to enfor
 
 All the deployed resources are tagged with `APPLICATION=EST Server for AWS IoT`.
 
+Code assessment using cdk-nag, bandit and pip-audit
+
+[![security: bandit](https://img.shields.io/badge/security-bandit-yellow.svg)](https://github.com/PyCQA/bandit)
+
 ## Application configuration & associated features / behaviour
 The configuration of the application before deployment is done via a single YAML configuration file `config/config.yaml`
 by default. You can specify a different configuration file as explained in [the section 'Deployment commands'](#deployment-commands).
@@ -285,7 +280,7 @@ The configuration file is split in two sections:
 In most cases you only need to provide the API Gateway custom domain name, the ACM ARN of the Certificate for this 
 custom domain name and, if applicable, the ARN for the ownership verification certificate.
 If you plan to let the deployment configure JITP, you will also have to provide the path to your provisioning template
-and IoT policy, or modify the files provided in the config folder.
+and IoT policy, or modify the files provided in the config directory.
 
 During testing we noticed that some devices do not comply with the headers requirements of [[RFC7030](https://datatracker.ietf.org/doc/html/rfc7030)]. To avoid
 blocking you can disable the header checks from the config file. The responses provided by the EST server will still
@@ -320,7 +315,7 @@ A special Lambda function is provided for signing client certificates for mTLS. 
 CA certificate has been generated during deployment (the private key is known). 
 * Usage: configure the environment variable "TRUSTSTORE_BUCKET" to point to an S3 bucket (pre-configured to the Truststore 
 bucket) and make sure the Lambda function has read/write access.
-* Place the CSR in the S3 bucket. You can use a folder.
+* Place the CSR in the S3 bucket. You can use a directory.
 * Configure a test event with a JSON event payload containing the key "csr_s3_key" with a value matching the S3 object 
 key of the CSR in S3
 * Run the Lambda function manually. It will write the signed certificate at the same location, with the extension `.crt`.
@@ -354,7 +349,7 @@ layer `utils`. **You MUST then implement this function**.
 #### Just in Time Provisioning (JITP)
 JITP configuration is enabled by the parameter `configureJITP`. It uses the provisioning template and IoT policy 
 as specified in the corresponding parameters located in the section `Properties`. Two samples are provided in the `config`
-folder. You should verify and potentially customise them before deploying.
+directory. You should verify and potentially customise them before deploying.
 
 Important: 
 * The IoT policy uses the placeholders
@@ -441,19 +436,19 @@ in `customisations/post_enroll`.
 Same as before for a re-enrollment call.
 
 ## Testing your deployment
-The test folder contains [test_runner.py](test/test_runner.py) which you can run manually in your venv with:
+The test directory contains `test_runner.py` which you can run manually in your venv with:
 ```bash
 python test_runner.py
 ```
 The tests cover:
 1. EST Server endpoints
 2. IoT Device interactions with IoT Core using the EST server as source of credentials. This will work only if you have
-enabled JITP configuration or if you have provisionned JITP in a target account and implemented the corresponding hooks
+enabled JITP configuration or if you have provisioned JITP in a target account and implemented the corresponding hooks
 for registering a certificate renewal (when calling `/simplereenroll` a device gets a new certificate which must be
 registered in IoT Core for the device to connect with the new certificate. JITP will not work for an existing Thing).
 
 Configuration of the test can be done via [test/test_config.yaml](test/test_config.yaml).
-A temp folder will be created in your current folder and will.
+A temp directory will be created in your current directory and will.
 [test_clients.py](test/test_clients.py) is used for the testes and is also a reference implementation of an EST client and an IoT Device 
 using EST for bootstrapping.
 
