@@ -96,21 +96,24 @@ def success200_cert(cert: bytes or str) -> dict:
     return {
         "statusCode": 200,
         "headers": {
-            "Content-Type": "application/pkcs7-mime;smime-type=certs-only",
+            "Content-Type": "application/pkcs7-mime; smime-type=certs-only",
             "Content-Transfer-Encoding": "base64"
         },
         "body": base64.b64encode(cert)
     }
 
 
-def no_content204(msg: str = "") -> dict:
-    return {
+def no_content204(msg: str = "", headers: dict = None) -> dict:
+    payload = {
         "statusCode": 204,
         "headers": {
             "Content-Type": "application/json"
         },
         "body": msg
     }
+    if headers:
+        payload["headers"] = headers
+    return payload
 
 
 def does_thing_exist(thing_name: str) -> bool:
@@ -270,7 +273,7 @@ def create_self_signed_root_ca(attributes: dict, validity_years: int) -> tuple[x
 
 
 def sign_csr_with_own_ca(csr: x509.base.CertificateSigningRequest, root_cert: x509.base.Certificate,
-                         root_key: rsa.RSAPrivateKey, validity_years: int = 10) -> x509.base.Certificate or None:
+                         root_key: rsa.RSAPrivateKey, validity_years: float = 10) -> x509.base.Certificate or None:
     """
     Sign the CSR with the self-signed Root CA
     :param validity_years:
@@ -339,10 +342,11 @@ def is_key(key: str) -> bool:
 
 
 def sign_thing_csr(csr: x509.base.CertificateSigningRequest, csr_data: dict, ca_cert_secret_arn: str,
-                   ca_key_secret_arn: str) -> x509.base.Certificate or None:
+                   ca_key_secret_arn: str, validity_years: float) -> x509.base.Certificate or None:
     """
     Sign a new CSR with own or external CA.
     Important: for external CA you must implement the function `sign_externally`
+    :param validity_years:
     :param csr:
     :param csr_data:
     :param ca_cert_secret_arn:
@@ -360,7 +364,7 @@ def sign_thing_csr(csr: x509.base.CertificateSigningRequest, csr_data: dict, ca_
     elif not is_key(key_str):
         # We don't have the key to sign the CSR, so we delegate to an external signing service
         logger.info("Delegating signature of the CSR")
-        return sign_device_csr_with_external_pki(csr, csr_data)  # Must be implemented by end user
+        return sign_device_csr_with_external_pki(csr, csr_data, validity_years)  # Must be implemented by end user
     elif cert_str == "":
         # We don't have a certificate which is unexpected since we have to register it in IoT Core
         logger.error("Missing Root Certificate for IoT Core in Secrets Manager")
@@ -372,7 +376,7 @@ def sign_thing_csr(csr: x509.base.CertificateSigningRequest, csr_data: dict, ca_
             csr=csr,
             root_cert=cert_obj,
             root_key=key_obj,
-            validity_years=1
+            validity_years=validity_years
         )
         logger.info("Signed a new certificate for: {}".format(csr_data))
         return signed_cert
@@ -416,9 +420,9 @@ def register_certificate_with_iot_core(cert: str, thing_name: str, iot_policy_na
     return False
 
 
-def cert_to_pem(cert: x509.base.Certificate) -> str:
+def cert_to_pem(cert: x509.base.Certificate or load_der_x509_csr) -> str:
     """
-    Convert a certificate object to PEM format
+    Convert a certificate or CSR object to PEM format
     :param cert: cert object
     :return: string
     """

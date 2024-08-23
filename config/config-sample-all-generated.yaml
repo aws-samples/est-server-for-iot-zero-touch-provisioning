@@ -21,6 +21,7 @@ Properties:
   iotTemplateName: "est_iot_provisioning_template" # 36 characters max !!
   iotPolicyPath: "config/iot_policy_default.json"
   iotPolicyName: "est_iot_policy_default"
+  iotDeviceCertValidityYears: 1
   # Lambda functions (applies to all, can be modified individually with function environment variable)
   lambdaLoggerLevel: "INFO"
   # Customization

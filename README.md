@@ -139,9 +139,9 @@ then have to figure out how to do that!
 ### About the device CSR
 The subject of the CSR submitted to the enrollment or reenrollment edpoints MUST contain a commonName (CN) and 
 serialNumber. The code checks for presence and will return an exception (400) if any is missing.
-If you enable JITP the provisioning template will use the CN as the ThingName and the serialNumber will be added as a 
+If you enable JITP, the provisioning template will use the CN as the ThingName and the serialNumber will be added as a 
 Thing attribute. You can change that in the provisioning template you will use but the code will still check
-that CN and serial Number are present int he CSR Subject.
+that CN and serialNumber are present in the CSR Subject.
 
 ## Setting-up your environment
 

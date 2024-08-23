@@ -20,9 +20,11 @@ import boto3
 # from cryptography.hazmat.primitives import serialization
 
 
-def sign_device_csr_with_external_pki(csr: x509.base.CertificateSigningRequest, csr_data: dict) -> str or None:
+def sign_device_csr_with_external_pki(csr: x509.base.CertificateSigningRequest,
+                                      csr_data: dict, validity_years: float) -> str or None:
     """
     This is an example of how you could sign the certificate externally using a PKI
+    :param validity_years:
     :param object csr: The Certificate Signing Request object
     :param dict csr_data: The parsed CSR data see below
     :return: PEM Formatted Certificate as a String
