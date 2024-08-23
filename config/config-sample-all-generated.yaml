@@ -4,6 +4,8 @@ Properties:
   apiCustomDomainName: "YOUR API DOMAIN NAME HERE"
   apiCertificateArn: "YOUR API CERTIFICATE ARN from CERTIFICATE MANAGER  HERE"
   apiOwnershipVerificationCertificateArn: "YOUR API OWNERSHIP VERIFICATION CERTIFICATE ARN from CERTIFICATE MANAGER HERE IF NECESSARY"
+  # Enable or disable caller Headers
+  apiStrictHeadersCheck: true
   # EST mTLS server side
   estMtlsCaSecretsName: "estMtlsCaSecrets"
   estMtlsCaCertValidity: 10
@@ -19,8 +21,11 @@ Properties:
   iotTemplateName: "est_iot_provisioning_template" # 36 characters max !!
   iotPolicyPath: "config/iot_policy_default.json"
   iotPolicyName: "est_iot_policy_default"
+  iotDeviceCertValidityYears: 1
   # Lambda functions (applies to all, can be modified individually with function environment variable)
   lambdaLoggerLevel: "INFO"
+  # Customization
+  customSecretName: "customSecret"
 
 DeploymentOptions:
   # mTLS Truststore certificate chain - generated if ""

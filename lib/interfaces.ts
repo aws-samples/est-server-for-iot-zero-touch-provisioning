@@ -6,6 +6,8 @@ export interface EstConfig {
         apiCustomDomainName: NonNullable<string>
         apiCertificateArn: NonNullable<string>
         apiOwnershipVerificationCertificateArn: NonNullable<string>
+        // Enable or disable strict caller headers check
+        apiStrictHeadersCheck: NonNullable<boolean>
         // EST mTLS server side
         estMtlsCaSecretsName: NonNullable<string>
         estMtlsCaCertValidity: NonNullable<number>
@@ -21,8 +23,11 @@ export interface EstConfig {
         iotTemplateName: NonNullable<string> // 36 characters max !!
         iotPolicyPath: NonNullable<string>
         iotPolicyName: NonNullable<string>
+        iotDeviceCertValidityYears: NonNullable<number>
         // Lambda functions (applies to all, can be modified individually with function environment variable)
         lambdaLoggerLevel: NonNullable<string>
+        // Customization
+        customSecretName: NonNullable<string>
     },
     DeploymentOptions: {
         // mTLS Truststore certificate chain - generated if ""

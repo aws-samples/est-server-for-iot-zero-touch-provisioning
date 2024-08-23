@@ -1,4 +1,4 @@
-# AWS IoT Core endpoind if not in same account as deployment. If in same account use ""
+# AWS IoT Core endpoint if not in same account as deployment. If in same account use ""
 iot_endpoint: ""
 # Path to the CDK config file to use
 cdk_config_file: "../config/config.yaml"
@@ -10,4 +10,4 @@ mtls_key_pem: null
 mqtt_topic: "messages/<thing_name>/hello"
 # Set to true to save IoT Core certificates and keys generated during the test to disk in
 # <current_dir>/temp/
-save_iot_creds_to_disk: false
+save_iot_creds_to_disk: true

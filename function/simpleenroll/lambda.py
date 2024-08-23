@@ -16,48 +16,39 @@
 import os
 import est_common as cmn
 from cryptography.x509.base import CertificateSigningRequest
+from customisations import pre_enroll, post_enroll
 
 CA_CERT_SECRET_ARN = os.environ['CA_CERT_SECRET_ARN']
 CA_KEY_SECRET_ARN = os.environ['CA_KEY_SECRET_ARN']
+STRICT_HEADERS_CHECK = os.environ.get('STRICT_HEADERS_CHECK', 'false').lower() == 'true'
+DEVICE_CERT_VALIDITY_YEARS = float(os.environ.get('DEVICE_CERT_VALIDITY_YEARS', '1'))
 
 
-def pre_enroll(event) -> bool:
-    """
-    This is the first function that is called when enrollment happens before the certificate is generated
-    :param event:
-    :return:
-    """
-    return True
-
-
-def enroll(csr: CertificateSigningRequest, csr_data: dict) -> str or None:
+def enroll(csr: CertificateSigningRequest, csr_data: dict,
+           validity_years: float) -> bytes or None:
     """
     This is the function that generates the certificate for an IoT device.
+    :param validity_years:
     :param csr: The Certificate Signing Request object
     :param csr_data: The parsed CSR data
-    :return str: The PEM encoded signed certificate
+    :return bytes: The DER encoded signed certificate
     """
-    return cmn.sign_thing_csr(csr=csr, csr_data=csr_data, ca_cert_secret_arn=CA_CERT_SECRET_ARN,
-                              ca_key_secret_arn=CA_KEY_SECRET_ARN)
-
-
-def post_enroll(event) -> bool:
-    """
-    This is the last function that is called when enrollment happens after the certificate is generated
-    :param event:
-    :return:
-    """
-    return True
+    cert = cmn.sign_thing_csr(csr=csr, csr_data=csr_data, ca_cert_secret_arn=CA_CERT_SECRET_ARN,
+                              ca_key_secret_arn=CA_KEY_SECRET_ARN, validity_years=validity_years)
+    if cert:
+        return cmn.cert_to_pkcs7_der([cert])
+    else:
+        return None
 
 
 def lambda_handler(event, context):
     """
     Return a new signed CSR after executing pre-enroll and post-enroll custom actions
-
+    The expected Certificate format is DER
     """
     cmn.logger.debug("Event: {}".format(event))
     try:
-        if cmn.validate_enroll_request(event) is not True:
+        if STRICT_HEADERS_CHECK is not False and cmn.validate_enroll_request(event) is not True:
             return cmn.error400("request validation failed")
         csr_str = cmn.extract_csr(event)
         if not csr_str:
@@ -67,7 +58,7 @@ def lambda_handler(event, context):
             return cmn.error400("CSR validation failed")
         if pre_enroll(event) is not True:
             return cmn.error400("Pre-enrollment failed")
-        cert = enroll(csr, csr_data)
+        cert = enroll(csr, csr_data, DEVICE_CERT_VALIDITY_YEARS)
         if not cert:
             return cmn.error400("Certificate signing failed")
         cmn.logger.warning("New enrollment certificate signed for {}".format(csr_data))

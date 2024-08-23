@@ -14,6 +14,49 @@ Provisioning (JITP). You will also find a lambda allowing to sign client CSR for
 The multiple options available will hopefully allow you to configure the EST service according to your use case, and
 in just a few minutes. We will go in details in the next sections, but for now lets take care of the impatient ones.
 
+## Content
+<!-- TOC -->
+* [Welcome to the EST Server for AWS IoT](#welcome-to-the-est-server-for-aws-iot)
+  * [Content](#content)
+  * [Flash Start](#flash-start)
+    * [You don't have any Root CA Certificate except for API Gateway custom domain name](#you-dont-have-any-root-ca-certificate-except-for-api-gateway-custom-domain-name)
+    * [You already have a CA Trust Chain for mTLS and you use an external PKI for signing the devices](#you-already-have-a-ca-trust-chain-for-mtls-and-you-use-an-external-pki-for-signing-the-devices)
+    * [Pro-tips](#pro-tips)
+    * [About re-enrollment](#about-re-enrollment)
+    * [About the device CSR](#about-the-device-csr)
+  * [Setting-up your environment](#setting-up-your-environment)
+    * [Pre-requisites](#pre-requisites)
+    * [Clone the repo](#clone-the-repo)
+    * [Install dependencies](#install-dependencies)
+    * [Deployment commands](#deployment-commands)
+    * [IMPORTANT](#important)
+  * [Establishing the bases](#establishing-the-bases)
+    * [Everything related to the IoT Operations](#everything-related-to-the-iot-operations)
+    * [A server or an API must be secure](#a-server-or-an-api-must-be-secure)
+    * [The users of the EST Server also need to be identified](#the-users-of-the-est-server-also-need-to-be-identified)
+  * [Understanding the application features and architecture](#understanding-the-application-features-and-architecture)
+    * [Features](#features)
+    * [Architecture](#architecture)
+    * [Security & Compliance](#security--compliance)
+  * [Application configuration & associated features / behaviour](#application-configuration--associated-features--behaviour)
+    * [Properties](#properties)
+    * [Deployment options](#deployment-options)
+      * [API Gateway Truststore](#api-gateway-truststore)
+      * [IoT Core CA parameters](#iot-core-ca-parameters)
+      * [Just in Time Provisioning (JITP)](#just-in-time-provisioning-jitp)
+  * [Additional features](#additional-features)
+    * [Reenrollment](#reenrollment)
+    * [Pre / Post (re)enrollment hooks](#pre--post-reenrollment-hooks)
+    * [Tenant](#tenant)
+    * [Updating the IoT CA and JITP](#updating-the-iot-ca-and-jitp)
+    * [Updating the mTLS configuration](#updating-the-mtls-configuration)
+  * [Customisation](#customisation)
+    * [Customise the device CSR signing with you own PKI](#customise-the-device-csr-signing-with-you-own-pki)
+    * [Enrollment hooks](#enrollment-hooks)
+    * [Re-enrollment hooks](#re-enrollment-hooks)
+  * [Testing your deployment](#testing-your-deployment)
+<!-- TOC -->
+
 ## Flash Start
 If you don't know what an EST Server is and/or you are not familiar with the AWS Cloud Development Kit (CDK) nor 
 AWS services (Amazon API Gateway, Amazon S3, AWS Iot Core, AWS Certificate Manager ) stop reading and skip to the next 
@@ -190,13 +233,14 @@ mTLS client certificates (sign a CSR) with the serf-signed root CA that was crea
 Signing an mTLS CSR is a manual action and a Lambda function is provided for this.
 
 * Just in Time Provisioning (JITP): JITP is a feature of AWS IoT Core allowing a new device to be automatically
-provisioned at first connection. When valid certificate, signed by the CA registered in IoT Core, is presented by a new 
+provisioned at first connection. When a valid certificate, signed by the CA registered in IoT Core, is presented by a new 
 device, IoT automatically provisions the device according to pre-configured provisioning template and IoT policy. More
 details are available [here](https://docs.aws.amazon.com/iot/latest/developerguide/jit-provisioning.html). By setting the
 configuration parameter `configureJITP` to `true` JITP will be configured in the account when the CDK is deployed.
 
 All the above feature options are controlled by a few configuration parameters of the configuration file you'll have to 
-create. This is the single point of configuration, except if you need to use an external PKI for signing the IoT Device CSR.
+create. This is the single point of configuration, except if you need to use an external PKI for signing the IoT Device CSR,
+in which case you also have to implement this interface.
 
 ### Architecture
 This CDK application deploys serverless AWS resources, limiting the run costs of the service and reducing the efforts to keep
@@ -226,17 +270,23 @@ Code assessment using cdk-nag, bandit and pip-audit
 [![security: bandit](https://img.shields.io/badge/security-bandit-yellow.svg)](https://github.com/PyCQA/bandit)
 
 ## Application configuration & associated features / behaviour
-The configuration odf the application before deployment is done via a single YAML configuration file `config/config.yaml`
-by default. You can specify a different configuration file as explains in [the section 'Deployment commands'](#deployment commands).
-The configuration file is plit in two sections:
+The configuration of the application before deployment is done via a single YAML configuration file `config/config.yaml`
+by default. You can specify a different configuration file as explained in [the section 'Deployment commands'](#deployment-commands).
+The configuration file is split in two sections:
 * Properties: contains parameters that do not influence the resources that will be deployed.
 * DeploymentOptions: depending on the values provided (or not) in this section, some resources will be deployed or not.
 
 ### Properties
 In most cases you only need to provide the API Gateway custom domain name, the ACM ARN of the Certificate for this 
 custom domain name and, if applicable, the ARN for the ownership verification certificate.
-If you plan to let the deployment configure JITP, you will also have to provide the path to the provisioning template
+If you plan to let the deployment configure JITP, you will also have to provide the path to your provisioning template
 and IoT policy, or modify the files provided in the config directory.
+
+During testing we noticed that some devices do not comply with the headers requirements of [[RFC7030](https://datatracker.ietf.org/doc/html/rfc7030)]. To avoid
+blocking you can disable the header checks from the config file. The responses provided by the EST server will still
+comply with the standard but the caller headers will be ignored. Note that WAF2 is also checking some headers. The rule
+requiring presence of the `User-Agent` header has been disabled but other rules might block.
+
 The other parameters are convenience:
 * Validity duration of generated certificates can be adjusted according to your policies
 * Names of important resources can be changed. This is particularly useful for the secrets in ACM which can only be deleted
@@ -246,10 +296,12 @@ wait for a new deployment.
 ### Deployment options
 The parameters in this section will affect what resources are deployed and what happens during the deployment.
 
-#### `mTlsTruststoreCertificatesChainFile`
+#### API Gateway Truststore
+
 [mTLS in API Gateway](https://docs.aws.amazon.com/apigateway/latest/developerguide/rest-api-mutual-tls.html) requires a 
 Truststore document to be placed in S3 and associated in your custom domain name. If you provide a local path to an 
 existing truststore document, the deployment will copy it to S3 and used it for configuring API Gateway.
+Specify this path in `mTlsTruststoreCertificatesChainFile`.
 
 If you do not provide the Truststore (use empty string ""), the deployment will:
 * Create a self-signed CA certificate for mTLS
@@ -291,8 +343,8 @@ an external PKI depending on the configuration above:
 * If a valid CA certificate **AND** the private key are present in ASM, the signing will be done locally by the Lambda
 function called by the endpoint.
 * If the Private key is missing from ASM, signing must be delegated to an external PKI. This is detected by the Lambda
-* function which then calls the python function `sign_externally` located in the Lambda layer `est_common.py`.
-**You MUST then implement this function**.
+function which then calls the python function `customisations/sign_device_csr_with_external_pki` located in the Lambda 
+layer `utils`. **You MUST then implement this function**.
 
 #### Just in Time Provisioning (JITP)
 JITP configuration is enabled by the parameter `configureJITP`. It uses the provisioning template and IoT policy 
@@ -326,7 +378,8 @@ associated with it.
 EST Server is deployed**
 
 ### Pre / Post (re)enrollment hooks
-Both the `simplenroll` and `simplereenroll` Lambda functions have pre-enrollment and post-enrollment hooks available.
+Both the `simplenroll` and `simplereenroll` Lambda functions have pre-enrollment and post-enrollment hooks available in
+the Layer [layer/utils/customisation.py](layer/utils/customisations.py).
 These hooks allow you to implement additional functionality before and after the CSR signing action.
 
 ### Tenant
@@ -339,8 +392,8 @@ or in a multi-tenant context. This parameter is currently not used by the core f
 To update an external Iot CA without JITP, run the Lambda Trigger manually again (it doesn't run at each deployment as 
 explained [here](https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.triggers-readme.html#re-execution-of-triggers)) 
 after uploading the new certificate to S3 (see the Lambda function environment variables).
-If you use a generated and want to reset it to a new one, you can set the environment variable FORCE to "true". Do not 
-forget to remove this environment variable afterward.
+If you use a generated CA and want to reset it to a new one, you can set the environment variable FORCE to "true". 
+Do not forget to remove this environment variable afterward.
 If JITP was enabled it will use the same provisioning template.
 
 ### Updating the mTLS configuration
@@ -348,6 +401,39 @@ If you use an external Truststore certificate chain you can upload it to S3 and 
 If you want to completely re-generate a new set of self-signed certificates and keys you can run manually the Lambda 
 Trigger with the environment variable `FORCE` set to "true" (`GENERATE_TRUSTSTORE` must also be "true").
 Do not forget to remove this environment variable afterward.
+API Gateway might not pick the new version of the Truststore automatically. In this case disable mTLS, wait for the
+update to take place and enable it again.
+
+## Customisation
+This section give an overview of the available code customisations options. The information is mostly already scattered 
+elsewhere in this document, but it doesn't to have a single place to recap...
+
+All customisations should be implemented in the Lambda layer [layer/utils/customisation.py](layer/utils/customisations.py).
+
+### Customise the device CSR signing with you own PKI
+If you deployed without a self-signed IoT Root CA for signing device CSR, you must implement your IoT PKI signing 
+function in `customisations/sign_device_csr_with_external_pki`. This function is called automatically if the Root CA cert 
+and private key are not available in ASM.
+
+**Keep you code secure:** 
+
+Do **NOT** hardcode secret values like API keys, credentials, etc. Instead, place them after deployment in the ASM secret 
+that has been deployed for you (with a dummy value). You'll find its name in the configuration file. 
+For obvious security reasons, only the Lambda functions `simpleenroll` and `simplereenroll` have read/write access to 
+this secret and receive the environment variable providing the secret ARN. But since this code is placed in a layer 
+imported by all the Lambda functions, you should NOT use any global variable related to this secret.
+The `sign_device_csr_with_external_pki` function already has the code to retrieve this secret as a python dictionary.
+
+### Enrollment hooks
+You can execute actions before the CSR signing is started by implementing them in `customisations/pre_enroll`.
+This function receives the entire event passed to the Lambda handler by API Gateway, so you have access to all the incoming 
+information.
+
+Similarly, you can execute actions after the CSR is signed and before it is returned to API Gateway by implementing them 
+in `customisations/post_enroll`.
+
+### Re-enrollment hooks
+Same as before for a re-enrollment call.
 
 ## Testing your deployment
 The test directory contains `test_runner.py` which you can run manually in your venv with:
@@ -361,12 +447,10 @@ enabled JITP configuration or if you have provisioned JITP in a target account a
 for registering a certificate renewal (when calling `/simplereenroll` a device gets a new certificate which must be
 registered in IoT Core for the device to connect with the new certificate. JITP will not work for an existing Thing).
 
-Configura of the test can be done via `test/test_config.yaml`.
+Configuration of the test can be done via [test/test_config.yaml](test/test_config.yaml).
 A temp directory will be created in your current directory and will.
-`test_clients.py` is used for the testes and is also a reference implementation of an EST client and an IoT Device 
+[test_clients.py](test/test_clients.py) is used for the testes and is also a reference implementation of an EST client and an IoT Device 
 using EST for bootstrapping.
-
-If you specify an IoT endpoint not located in the
 
 Running the tests requires `Administrator` or `PowerUserAccess` privileges because it uses boto3 to access some 
 information on the AWS account.

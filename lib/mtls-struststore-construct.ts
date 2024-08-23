@@ -20,7 +20,6 @@ import {Construct} from "constructs";
 import {MakeLambda} from "./make-lambda-construct";
 import {EstConfig} from "./interfaces"
 import * as path from "node:path";
-import {NagSuppressions} from "cdk-nag";
 
 export interface MtlsTruststoreProps {
     encryptionKey: cdk.aws_kms.Key;

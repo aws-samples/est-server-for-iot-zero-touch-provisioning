@@ -83,7 +83,7 @@ class Test01EstServer(unittest.TestCase):
         r = self.est_client.get_iot_ca_cert()
         self.assertEqual(200, r["status_code"], "Status code 200 expected from /cacerts")
         self.assertIn("-----BEGIN CERTIFICATE-----", r['crt_pem'], "PEM format expected")
-        self.assertEqual("application/pkcs7-mime", r['headers']['content-type'],
+        self.assertEqual("application/pkcs7-mime; smime-type=certs-only", r['headers']['content-type'],
                          "PKCS7 MIME content-type header expected")
 
     def test_03(self):
@@ -93,8 +93,10 @@ class Test01EstServer(unittest.TestCase):
         """
         r = self.est_client.get_csr_attrs()
         self.assertEqual(204, r["status_code"], "Status code 204 expected from /csrattrs")
-        self.assertEqual("application/json", r['headers']['content-type'],
-                         "application/json content-type header expected")
+        self.assertEqual("application/csrattrs", r['headers']['content-type'],
+                         "application/csrattrs content-type header expected")
+        self.assertEqual("base64", r['headers']['content-transfer-encoding'],
+                         "base64 content-type header expected")
         self.assertEqual(b"", r['content'], "No content expected")
 
     def test_04(self):
@@ -112,7 +114,7 @@ class Test01EstServer(unittest.TestCase):
         """
         r = self.est_client.simpleenroll()
         self.assertEqual(200, r["status_code"], "Status code 200 expected from /simpleenroll")
-        self.assertEqual("application/pkcs7-mime", r['headers']['content-type'],
+        self.assertEqual("application/pkcs7-mime; smime-type=certs-only", r['headers']['content-type'],
                          "application/pkcs7-mime content-type header expected")
         self.assertIn("-----BEGIN CERTIFICATE-----", r['crt_pem'], "PEM format expected")
 
@@ -123,7 +125,7 @@ class Test01EstServer(unittest.TestCase):
         """
         r = self.est_client.simplereenroll()
         self.assertEqual(200, r["status_code"], "Status code 200 expected from /simplereenroll")
-        self.assertEqual("application/pkcs7-mime", r['headers']['content-type'],
+        self.assertEqual("application/pkcs7-mime; smime-type=certs-only", r['headers']['content-type'],
                          "application/pkcs7-mime content-type header expected")
         self.assertIn("-----BEGIN CERTIFICATE-----", r['crt_pem'], "PEM format expected")
 
