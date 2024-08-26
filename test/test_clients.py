@@ -54,7 +54,8 @@ class EstClient(object):
     """
 
     def __init__(self, thing_name: str, est_api_domain: str, est_api_cert: str,
-                 mtls_cert_pem: str, mtls_key_pem: str, save_to_temp: bool = True):
+                 mtls_cert_pem: str, mtls_key_pem: str, save_to_temp: bool = True,
+                 http_timeout: [int, float] = 20):
         """
 
         :param thing_name: the Thing name
@@ -70,6 +71,7 @@ class EstClient(object):
         self.mtls_cert = load_pem_x509_certificate(mtls_cert_pem.encode('utf-8'))
         self.mtls_key = load_pem_private_key(mtls_key_pem.encode('utf-8'), password=None)
         self.save_to_temp = save_to_temp
+        self.http_timeout = http_timeout
         self.iot_ca_cert = None
         self.csrattrs = None
         self.iot_device_key = None
@@ -126,7 +128,7 @@ class EstClient(object):
         headers = headers or {"Accept": "application/pkcs7-mime"}
         r = requests.get(self.est_url + "/cacerts", headers=headers,
                          cert=(self.mtls_cert_path, self.mtls_key_path),
-                         verify=self.est_api_cert_path, timeout=20
+                         verify=self.est_api_cert_path, timeout=self.http_timeout
                          )
         r.raise_for_status()  # Raises an exception for 4xx and 5xx
         pkcs7_certs = pkcs7.load_der_pkcs7_certificates(b64.b64decode(r.content))
@@ -149,7 +151,7 @@ class EstClient(object):
         r = requests.get(self.est_url + "/csrattrs",
                          headers=headers or {"Accept": "*/*"},
                          cert=(self.mtls_cert_path, self.mtls_key_path),
-                         verify=self.est_api_cert_path, timeout=20
+                         verify=self.est_api_cert_path, timeout=self.http_timeout
                          )
         r.raise_for_status()  # Raises an exception if not 200
         self.csrattrs = r.content
@@ -171,7 +173,7 @@ class EstClient(object):
                           data=content,
                           cert=(self.mtls_cert_path, self.mtls_key_path),
                           verify=self.est_api_cert_path,
-                          timeout=20
+                          timeout=self.http_timeout
                           )
         return {
             "status_code": r.status_code,
@@ -228,7 +230,7 @@ class EstClient(object):
                           data=content,
                           cert=(self.mtls_cert_path, self.mtls_key_path),
                           verify=self.est_api_cert_path,
-                          timeout=20
+                          timeout=self.http_timeout
                           )
         return r
 
@@ -297,7 +299,8 @@ class IotClient(object):
     Implementation of an IoT Client
     """
 
-    def __init__(self, thing_name: str, endpoint: str, port: int or None, est_client_kwargs: dict, save_creds: bool):
+    def __init__(self, thing_name: str, endpoint: str, port: int or None, est_client_kwargs: dict, save_creds: bool,
+                 http_timeout: [int, float] = 20):
         self.thing_name = thing_name
         self.endpoint = endpoint
         self.port = port
@@ -312,6 +315,7 @@ class IotClient(object):
         self.mqtt_connection = None
         self.messages = {}
         self.save_creds = save_creds
+        self.http_timeout = http_timeout
 
     @property
     def is_connected(self) -> bool:
@@ -366,7 +370,7 @@ class IotClient(object):
 
     def get_root_ca(self, save: bool = False) -> bool:
         try:
-            r = requests.get(IOT_CORE_CA_URL, timeout=20)
+            r = requests.get(IOT_CORE_CA_URL, timeout=self.http_timeout)
             self.root_ca = r.content
             if save is True:
                 save_to_disk("./temp/iot_core_root_ca.pem", self.root_ca.decode('utf-8'))

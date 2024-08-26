@@ -24,6 +24,7 @@ class Init(object):
         acm_client = boto3.client('acm')
         cert = acm_client.get_certificate(
             CertificateArn=self.cdk_config['Properties']['apiCertificateArn'])
+        self.http_timeout = self.test_config['http_timeout']
         self.api_cert = cert['Certificate']
         self.topic = self.test_config['mqtt_topic']
         self.save_creds = self.test_config['save_iot_creds_to_disk']
@@ -60,7 +61,8 @@ class Test01EstServer(unittest.TestCase):
             est_api_domain=cls.init.api_domain,
             est_api_cert=cls.init.api_cert,
             mtls_cert_pem=cls.init.mtls_cert_pem,
-            mtls_key_pem=cls.init.mtls_key_pem
+            mtls_key_pem=cls.init.mtls_key_pem,
+            http_timeout=cls.init.http_timeout,
         )
         cls.setup_done = True
 
@@ -160,14 +162,16 @@ class Test02IotClient(unittest.TestCase):
             est_api_domain=cls.init.api_domain,
             est_api_cert=cls.init.api_cert,
             mtls_cert_pem=cls.init.mtls_cert_pem,
-            mtls_key_pem=cls.init.mtls_key_pem
+            mtls_key_pem=cls.init.mtls_key_pem,
+            http_timeout=cls.init.http_timeout
         )
         cls.iot_client = IotClient(
             thing_name=cls.thing_name,
             endpoint=cls.endpoint,
             port=None,
             est_client_kwargs=cls.est_client_kwargs,
-            save_creds=cls.save_creds
+            save_creds=cls.save_creds,
+            http_timeout=cls.init.http_timeout
         )
         cls.setup_done = True
 
