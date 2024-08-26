@@ -24,6 +24,7 @@ Properties:
   iotDeviceCertValidityYears: 1
   # Lambda functions (applies to all, can be modified individually with function environment variable)
   lambdaLoggerLevel: "INFO"
+  lambdaTimeoutSeconds: 60
   # Customization
   customSecretName: "customSecret"
 
