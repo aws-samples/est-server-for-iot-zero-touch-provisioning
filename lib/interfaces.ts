@@ -26,6 +26,7 @@ export interface EstConfig {
         iotDeviceCertValidityYears: NonNullable<number>
         // Lambda functions (applies to all, can be modified individually with function environment variable)
         lambdaLoggerLevel: NonNullable<string>
+        lambdaTimeoutSeconds: NonNullable<number>
         // Customization
         customSecretName: NonNullable<string>
     },

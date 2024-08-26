@@ -30,6 +30,7 @@ export class EstServerForAwsIotStack extends cdk.Stack {
         // Useful constants
         const strictHeadersCheck = estConfig.Properties.apiStrictHeadersCheck;
         const deviceCertValidityYears: number = estConfig.Properties.iotDeviceCertValidityYears;
+        const lambdaTimeoutSeconds: number = estConfig.Properties.lambdaTimeoutSeconds;
 
         // Create the Lambda layers containing reusable functions
         const CommonLambdaLayer = new python.PythonLayerVersion(this, "est-layer-utils" + id, {
@@ -45,6 +46,7 @@ export class EstServerForAwsIotStack extends cdk.Stack {
         const customSecret = new cdk.aws_secretsmanager.Secret(this,"customSecret", {
             encryptionKey: secretsEncryptionKey,
             secretName: estConfig.Properties.customSecretName,
+            description: "EST Server Secret for custom PKI",
             secretObjectValue: {
                 key: cdk.SecretValue.unsafePlainText("dummy")
             },
@@ -71,7 +73,7 @@ export class EstServerForAwsIotStack extends cdk.Stack {
                     CA_CERT_SECRET_ARN: iot_ca.iotCoreCaCertSecret.secretArn,
                     STRICT_HEADERS_CHECK: strictHeadersCheck.toString(),
                     },
-                timeout: cdk.Duration.seconds(10),
+                timeout: cdk.Duration.seconds(lambdaTimeoutSeconds),
             }
         );
         iot_ca.iotCoreCaCertSecret.grantRead(ld_cacerts.lambda)
@@ -87,7 +89,7 @@ export class EstServerForAwsIotStack extends cdk.Stack {
                     LOG_LEVEL: estConfig.Properties.lambdaLoggerLevel,
                     STRICT_HEADERS_CHECK: strictHeadersCheck.toString(),
                 },
-                timeout: cdk.Duration.seconds(10),
+                timeout: cdk.Duration.seconds(lambdaTimeoutSeconds),
             }
         );
 
@@ -101,7 +103,7 @@ export class EstServerForAwsIotStack extends cdk.Stack {
                     LOG_LEVEL: estConfig.Properties.lambdaLoggerLevel,
                     STRICT_HEADERS_CHECK: strictHeadersCheck.toString(),
                 },
-                timeout: cdk.Duration.seconds(10),
+                timeout: cdk.Duration.seconds(lambdaTimeoutSeconds),
             }
         );
 
@@ -119,7 +121,7 @@ export class EstServerForAwsIotStack extends cdk.Stack {
                     CUSTOM_SECRET_ARN: customSecret.secretArn,
                     DEVICE_CERT_VALIDITY_YEARS: deviceCertValidityYears.toString(),
                 },
-                timeout: cdk.Duration.seconds(10),
+                timeout: cdk.Duration.seconds(lambdaTimeoutSeconds),
             }
         );
         iot_ca.iotCoreCaCertSecret.grantRead(ld_simpleenroll.lambda)
@@ -143,7 +145,7 @@ export class EstServerForAwsIotStack extends cdk.Stack {
                     CUSTOM_SECRET_ARN: customSecret.secretArn,
                     DEVICE_CERT_VALIDITY_YEARS: deviceCertValidityYears.toString(),
                 },
-                timeout: cdk.Duration.seconds(10),
+                timeout: cdk.Duration.seconds(lambdaTimeoutSeconds),
             }
         );
         iot_ca.iotCoreCaCertSecret.grantRead(ld_simplereenroll.lambda)
