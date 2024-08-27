@@ -10,4 +10,4 @@ cdk.out
 # Additional local folders
 do-not-track
 /config/config.yaml
-/test/temp/
+**/test/

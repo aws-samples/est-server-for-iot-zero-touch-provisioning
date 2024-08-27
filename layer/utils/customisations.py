@@ -21,7 +21,7 @@ import boto3
 
 
 def sign_device_csr_with_external_pki(csr: x509.base.CertificateSigningRequest,
-                                      csr_data: dict, validity_years: float) -> str or None:
+                                      csr_data: dict, validity_years: float) -> x509.base.Certificate or None:
     """
     This is an example of how you could sign the certificate externally using a PKI
     :param validity_years:

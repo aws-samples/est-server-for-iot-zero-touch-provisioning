@@ -114,17 +114,18 @@ class EstClient(object):
         self.iot_device_csr = None
         self.iot_device_cert = None
 
-        self.files_base_path = "./test_data/est_client/{}".format(datetime.datetime.now().isoformat(timespec='seconds'))
+        self.files_base_path = os.path.normpath("./test_data/est_client/{}".format(
+            datetime.datetime.now().isoformat(timespec='seconds')))
         os.makedirs(self.files_base_path, exist_ok=True)
 
-        self.est_api_cert_path = self.files_base_path + "/api_ca.pem"
-        self.cacerts_path = self.files_base_path + "/cacerts.pem"
-        self.mtls_cert_path = self.files_base_path + "/mtls_cert.crt"
-        self.mtls_key_path = self.files_base_path + "/mtls_key.key"
+        self.est_api_cert_path = os.path.join(self.files_base_path, "api_ca.pem")
+        self.cacerts_path = os.path.join(self.files_base_path, "cacerts.pem")
+        self.mtls_cert_path = os.path.join(self.files_base_path, "mtls_cert.crt")
+        self.mtls_key_path = os.path.join(self.files_base_path, "mtls_key.key")
 
-        self.iot_device_csr_path = self.files_base_path + "/iot_device.csr"
-        self.iot_device_key_path = self.files_base_path + "/iot_device.key"
-        self.iot_device_cert_path = self.files_base_path + "/iot_device.crt"
+        self.iot_device_csr_path = os.path.join(self.files_base_path, "iot_device.csr")
+        self.iot_device_key_path = os.path.join(self.files_base_path, "iot_device.key")
+        self.iot_device_cert_path = os.path.join(self.files_base_path, "iot_device.crt")
 
         self.make_csr()
         self.default_headers = {
@@ -362,11 +363,12 @@ class IotClient(object):
         self.messages = {}
         self.save_test_data = save_test_data
         self.http_timeout = http_timeout
-        self.files_base_path = "./test_data/iot_client/{}".format(datetime.datetime.now().isoformat(timespec='seconds'))
-        self.iot_core_ca_path = self.files_base_path + "/iot_core_root_ca.pem"
-        self.iot_device_cert_path = self.files_base_path + "/iot_device.crt"
-        self.iot_device_key_path = self.files_base_path + "/iot_device.key"
-        self.iot_device_csr_path = self.files_base_path + "/iot_device.csr"
+        self.files_base_path = os.path.normpath("./test_data/iot_client/{}".format(
+            datetime.datetime.now().isoformat(timespec='seconds')))
+        self.iot_core_ca_path = os.path.join(self.files_base_path, "iot_core_root_ca.pem")
+        self.iot_device_cert_path = os.path.join(self.files_base_path, "iot_device.crt")
+        self.iot_device_key_path = os.path.join(self.files_base_path, "iot_device.key")
+        self.iot_device_csr_path = os.path.join(self.files_base_path, "iot_device.csr")
         os.makedirs(self.files_base_path, exist_ok=True)
         self.est_kwargs = est_client_kwargs
 
