@@ -27,7 +27,7 @@ class Init(object):
         self.http_timeout = self.test_config['http_timeout']
         self.api_cert = cert['Certificate']
         self.topic = self.test_config['mqtt_topic']
-        self.save_creds = self.test_config['save_iot_creds_to_disk']
+        self.save_test_data = self.test_config['save_test_data']
         self.endpoint = self.test_config['iot_endpoint']
         if not self.test_config['mtls_cert_pem'] or not self.test_config['mtls_key_pem']:
             print("mTLS credentials not provided, attempting to read from AWS Cloud ASM")
@@ -52,6 +52,7 @@ class Test01EstServer(unittest.TestCase):
         Setup the test environment ONCE (setUp method runs before each test)
         :return: None
         """
+        # raise unittest.SkipTest("Not running now")
         cls.setup_done = False
         cls.init = Init()
         cls.api_domain = cls.init.api_domain
@@ -63,6 +64,7 @@ class Test01EstServer(unittest.TestCase):
             mtls_cert_pem=cls.init.mtls_cert_pem,
             mtls_key_pem=cls.init.mtls_key_pem,
             http_timeout=cls.init.http_timeout,
+            save_test_data=cls.init.save_test_data,
         )
         cls.setup_done = True
 
@@ -82,7 +84,7 @@ class Test01EstServer(unittest.TestCase):
         Validate that IoT CA is correctly fetched
         :return:
         """
-        r = self.est_client.get_iot_ca_cert()
+        r = self.est_client.get_cacerts()
         self.assertEqual(200, r["status_code"], "Status code 200 expected from /cacerts")
         self.assertIn("-----BEGIN CERTIFICATE-----", r['crt_pem'], "PEM format expected")
         self.assertEqual("application/pkcs7-mime; smime-type=certs-only", r['headers']['content-type'],
@@ -93,7 +95,7 @@ class Test01EstServer(unittest.TestCase):
         Validate that csrattrs returns no content
         :return:
         """
-        r = self.est_client.get_csr_attrs()
+        r = self.est_client.get_csrattrs()
         self.assertEqual(204, r["status_code"], "Status code 204 expected from /csrattrs")
         self.assertEqual("application/csrattrs", r['headers']['content-type'],
                          "application/csrattrs content-type header expected")
@@ -140,6 +142,7 @@ class Test02IotClient(unittest.TestCase):
         Setup the test environment ONCE (setUp method runs before each test)
         :return: None
         """
+        # raise unittest.SkipTest("Not running now")
         cls.setup_done = False
         cls.init = Init()
         cls.api_domain = cls.init.api_domain
@@ -150,7 +153,6 @@ class Test02IotClient(unittest.TestCase):
         cls.est_api_cert = cls.init.api_cert,
         cls.mtls_cert_pem = cls.init.mtls_cert_pem,
         cls.mtls_key_pem = cls.init.mtls_key_pem
-        cls.save_creds = cls.init.save_creds
         cls.b3client = boto3.client('iot')
         if cls.init.endpoint:
             cls.endpoint = cls.init.endpoint
@@ -163,15 +165,16 @@ class Test02IotClient(unittest.TestCase):
             est_api_cert=cls.init.api_cert,
             mtls_cert_pem=cls.init.mtls_cert_pem,
             mtls_key_pem=cls.init.mtls_key_pem,
-            http_timeout=cls.init.http_timeout
+            http_timeout=cls.init.http_timeout,
+            save_test_data=cls.init.save_test_data,
         )
         cls.iot_client = IotClient(
             thing_name=cls.thing_name,
             endpoint=cls.endpoint,
             port=None,
             est_client_kwargs=cls.est_client_kwargs,
-            save_creds=cls.save_creds,
-            http_timeout=cls.init.http_timeout
+            save_test_data=cls.init.save_test_data,
+            http_timeout=cls.init.http_timeout,
         )
         cls.setup_done = True
 
@@ -226,14 +229,14 @@ class Test02IotClient(unittest.TestCase):
         """
         old_cert = self.iot_client.certificate
         old_key = self.iot_client.private_key
-        r = self.iot_client.renew_certificate(save=self.save_creds)
+        r = self.iot_client.renew_certificate()
         self.assertEqual(200, r.get('status_code'), "Certificate renewal should be successful")
         self.assertTrue(self.iot_client.disconnect, "Disconnection from IoT Core should be successful")
         new_cert = self.iot_client.certificate
         new_key = self.iot_client.private_key
         self.assertNotEqual(old_cert, new_cert, "Certificate should be different")
         self.assertNotEqual(old_key, new_key, "Key should be different")
-        self.iot_client.init_connection()
+        self.iot_client.init_connection(skip_est=True)
         self.iot_client.connect()
         time.sleep(2)
         self.assertTrue(self.iot_client.is_connected, "Connection to AWS IoT Core should be successful")

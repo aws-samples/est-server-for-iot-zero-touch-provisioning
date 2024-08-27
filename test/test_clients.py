@@ -33,12 +33,46 @@ import datetime
 IOT_CORE_CA_URL = "https://www.amazontrust.com/repository/AmazonRootCA1.pem"
 
 
-def verify_cert(cert: x509.base.Certificate, pki_ca: x509.base.Certificate) -> bool:
+def rotate_file_name_if_exist(file_path: str, org_file_path: str = None, index: int = 0) -> int:
+    if org_file_path is None:
+        org_file_path = file_path
+
+    if not os.path.exists(file_path):
+        return index
+    else:
+        index += 1
+        file_name, file_extension = os.path.splitext(file_path)
+        if file_path != org_file_path:
+            file_name = file_name.rsplit("-", 1)[0]
+        new_file_name = "{}-{:0=3}{}".format(file_name, index, file_extension)
+        _ = rotate_file_name_if_exist(new_file_name, org_file_path, index)
+        os.rename(file_path, new_file_name)
+    return index
+
+
+def write_to_file(file_path: str, content: str):
+    _ = rotate_file_name_if_exist(file_path)
+    if isinstance(content, bytes):
+        mode = "wb"
+    else:
+        mode = "w"
+    with open(file_path, mode) as f:
+        f.write(content)
+
+
+def clear_directory(dir_path: str):
+    for file in os.listdir(dir_path):
+        file_path = os.path.join(dir_path, file)
+        if os.path.isfile(file_path):
+            os.remove(file_path)
+
+
+def verify_cert(cert: x509.base.Certificate, ca: x509.base.Certificate) -> bool:
     try:
-        cert.verify_directly_issued_by(pki_ca)
+        cert.verify_directly_issued_by(ca)
         return True
     except Exception as e:
-        print("Certificate verification against PKI CA failed")
+        print("Certificate verification against CA failed")
         print(e)
         return False
 
@@ -54,15 +88,16 @@ class EstClient(object):
     """
 
     def __init__(self, thing_name: str, est_api_domain: str, est_api_cert: str,
-                 mtls_cert_pem: str, mtls_key_pem: str, save_to_temp: bool = True,
+                 mtls_cert_pem: str, mtls_key_pem: str, save_test_data: bool = True,
                  http_timeout: [int, float] = 20):
         """
-
         :param thing_name: the Thing name
         :param est_api_domain:  The EST API FQN
         :param est_api_cert: The API CA Certificate (for TLS verification)
         :param mtls_cert_pem: The mTLS client certificate in pem format
         :param mtls_key_pem: The mTLS client private key in pem format
+        :param save_test_data: If True certificates, keys and CSR are saved to disk
+        :param http_timeout: timeout for http response
         """
         self.thing_name = thing_name
         self.est_uri = est_api_domain
@@ -70,20 +105,26 @@ class EstClient(object):
         self.est_url = "https://{}/.well-known/est".format(est_api_domain)
         self.mtls_cert = load_pem_x509_certificate(mtls_cert_pem.encode('utf-8'))
         self.mtls_key = load_pem_private_key(mtls_key_pem.encode('utf-8'), password=None)
-        self.save_to_temp = save_to_temp
+        self.save_test_data = save_test_data
         self.http_timeout = http_timeout
-        self.iot_ca_cert = None
         self.csrattrs = None
+
+        self.cacerts = None
         self.iot_device_key = None
         self.iot_device_csr = None
         self.iot_device_cert = None
-        self.files_base_path = "./temp"
+
+        self.files_base_path = "./test_data/est_client/{}".format(datetime.datetime.now().isoformat(timespec='seconds'))
         os.makedirs(self.files_base_path, exist_ok=True)
-        self.est_api_cert_path = self.files_base_path + "/api_ca_cert.pem"
+
+        self.est_api_cert_path = self.files_base_path + "/api_ca.pem"
+        self.cacerts_path = self.files_base_path + "/cacerts.pem"
         self.mtls_cert_path = self.files_base_path + "/mtls_cert.crt"
         self.mtls_key_path = self.files_base_path + "/mtls_key.key"
+
         self.iot_device_csr_path = self.files_base_path + "/iot_device.csr"
         self.iot_device_key_path = self.files_base_path + "/iot_device.key"
+        self.iot_device_cert_path = self.files_base_path + "/iot_device.crt"
 
         self.make_csr()
         self.default_headers = {
@@ -92,14 +133,10 @@ class EstClient(object):
             "Content-Transfer-Encoding": "base64",
             "Content-Disposition": "attachment",
         }
-        # Store secrets in files because of Requests accepting only file strings
-        with open(self.est_api_cert_path, 'w') as f:
-            f.write(est_api_cert)
-        with open(self.mtls_cert_path, 'w') as f:
-            f.write(mtls_cert_pem)
-        with open(self.mtls_key_path, 'w') as f:
-            f.write(mtls_key_pem)
-        self.iot_ca_cert_path = self.files_base_path + "/iot_pki_ca_cert.pem"
+        # Store secrets in files because of Requests accepting only file path strings
+        write_to_file(self.est_api_cert_path, est_api_cert)
+        write_to_file(self.mtls_cert_path,mtls_cert_pem)
+        write_to_file(self.mtls_key_path, mtls_key_pem)
 
     @property
     def iot_key_bytes(self) -> bytes:
@@ -116,10 +153,10 @@ class EstClient(object):
         return self.iot_device_cert.public_bytes(encoding=serialization.Encoding.PEM)
 
     @property
-    def iot_ca_cert_bytes(self) -> bytes:
-        return self.iot_ca_cert.public_bytes(encoding=serialization.Encoding.PEM)
+    def cacerts_bytes(self) -> bytes:
+        return self.cacerts.public_bytes(encoding=serialization.Encoding.PEM)
 
-    def get_iot_ca_cert(self, headers: dict or None = None) -> dict:
+    def get_cacerts(self, headers: dict or None = None) -> dict:
         """
         Calls /cacerts endpoing and stores the certificate
         :returns: dict with response elements status_code, headers, content
@@ -132,10 +169,10 @@ class EstClient(object):
                          )
         r.raise_for_status()  # Raises an exception for 4xx and 5xx
         pkcs7_certs = pkcs7.load_der_pkcs7_certificates(b64.b64decode(r.content))
-        self.iot_ca_cert = pkcs7_certs[0]
-        cert = self.iot_ca_cert.public_bytes(encoding=serialization.Encoding.PEM).decode('utf-8')
-        with open(self.iot_ca_cert_path, "w") as f:
-            f.write(cert)
+        self.cacerts = pkcs7_certs[0]
+        cert = self.cacerts.public_bytes(encoding=serialization.Encoding.PEM).decode('utf-8')
+        if self.save_test_data:
+            write_to_file(self.cacerts_path, cert)
         return {
             "crt_pem": cert,
             "status_code": r.status_code,
@@ -143,7 +180,7 @@ class EstClient(object):
             "content": r.content
         }
 
-    def get_csr_attrs(self, headers: dict or None = None) -> dict:
+    def get_csrattrs(self, headers: dict or None = None) -> dict:
         """
         Calls /csrattrs endpoint
         :returns: dict with response elements status_code, headers, content
@@ -218,9 +255,14 @@ class EstClient(object):
         ).sign(self.iot_device_key, hashes.SHA256())
 
         # Store
-        if self.save_to_temp is True:
-            with open(self.iot_device_csr_path, "w") as f:
-                f.write(self.iot_device_csr.public_bytes(encoding=serialization.Encoding.PEM).decode('utf-8'))
+        if self.save_test_data is True:
+            print("Saving CSR data in {}".format(self.files_base_path))
+            write_to_file(self.iot_device_csr_path, self.iot_device_csr.public_bytes(encoding=serialization.Encoding.PEM).decode('utf-8'))
+            write_to_file(self.iot_device_key_path, self.iot_device_key.private_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PrivateFormat.PKCS8,
+                    encryption_algorithm=serialization.NoEncryption(),
+                ).decode("utf-8"))
 
     def _enrollment_call(self, headers: dict or None, content: bytes, api_endpoint: str) -> requests.models.Response:
         if not content:
@@ -243,11 +285,13 @@ class EstClient(object):
         if r.status_code == 200:
             pkcs7_certs = pkcs7.load_der_pkcs7_certificates(b64.b64decode(r.content))
             self.iot_device_cert = pkcs7_certs[0]
-            crt_pem = self.iot_ca_cert.public_bytes(encoding=serialization.Encoding.PEM).decode('utf-8')
-            if verify_cert(self.iot_device_cert, self.iot_ca_cert) is not True:
+            crt_pem = self.iot_device_cert.public_bytes(encoding=serialization.Encoding.PEM).decode('utf-8')
+            if verify_cert(self.iot_device_cert, self.cacerts) is not True:
                 raise Exception("Device Certificate verification against PKI CA failed")
         else:
             crt_pem = r.text
+        if self.save_test_data:
+            write_to_file(self.iot_device_cert_path, crt_pem)
         return {
             "crt_pem": crt_pem,
             "status_code": r.status_code,
@@ -260,15 +304,18 @@ class EstClient(object):
         Calls /simplereenroll endpoing
         :returns: dict with response elements crt, status_code, headers, content
         """
-        # Create a new CSR before calling the signing endpoint. It also creates a new key as it was rolled on the device
+        # Create a new CSR before calling the signing endpoint. It also creates a new key as if it was rolled on the device
         self.make_csr()
         r = self._enrollment_call(headers, content, "/simplereenroll")
         if r.status_code == 200:
             pkcs7_certs = pkcs7.load_der_pkcs7_certificates(b64.b64decode(r.content))
-            self.iot_device_cert = pkcs7_certs[0]
-            crt_pem = self.iot_ca_cert.public_bytes(encoding=serialization.Encoding.PEM).decode('utf-8')
-            if verify_cert(self.iot_device_cert, self.iot_ca_cert) is not True:
+            new_cert = pkcs7_certs[0]
+            if verify_cert(new_cert, self.cacerts) is not True:
                 raise Exception("Device Certificate verification against PKI CA failed")
+            self.iot_device_cert = new_cert
+            crt_pem = self.iot_device_cert.public_bytes(encoding=serialization.Encoding.PEM).decode('utf-8')
+            if self.save_test_data:
+                write_to_file(self.iot_device_cert_path, crt_pem)
         else:
             crt_pem = r.text
         return {
@@ -283,7 +330,7 @@ class EstClient(object):
         Performs the tasks necessary to collect all the data for an IoT Device
         :return: nothing
         """
-        resp = self.get_iot_ca_cert()
+        resp = self.get_cacerts()
         if not resp['status_code'] == 200:
             print("Failed to boostrap from /cacerts")
             return False
@@ -299,7 +346,7 @@ class IotClient(object):
     Implementation of an IoT Client
     """
 
-    def __init__(self, thing_name: str, endpoint: str, port: int or None, est_client_kwargs: dict, save_creds: bool,
+    def __init__(self, thing_name: str, endpoint: str, port: int or None, est_client_kwargs: dict, save_test_data: bool,
                  http_timeout: [int, float] = 20):
         self.thing_name = thing_name
         self.endpoint = endpoint
@@ -311,11 +358,17 @@ class IotClient(object):
         self.private_key_prev = None
         self.connected = False
         self.est_client = None
-        self.est_kwargs = est_client_kwargs
         self.mqtt_connection = None
         self.messages = {}
-        self.save_creds = save_creds
+        self.save_test_data = save_test_data
         self.http_timeout = http_timeout
+        self.files_base_path = "./test_data/iot_client/{}".format(datetime.datetime.now().isoformat(timespec='seconds'))
+        self.iot_core_ca_path = self.files_base_path + "/iot_core_root_ca.pem"
+        self.iot_device_cert_path = self.files_base_path + "/iot_device.crt"
+        self.iot_device_key_path = self.files_base_path + "/iot_device.key"
+        self.iot_device_csr_path = self.files_base_path + "/iot_device.csr"
+        os.makedirs(self.files_base_path, exist_ok=True)
+        self.est_kwargs = est_client_kwargs
 
     @property
     def is_connected(self) -> bool:
@@ -357,23 +410,28 @@ class IotClient(object):
         print("Connection closed")
         self.connected = False
 
-    def est_bootstrap(self, save: bool = False) -> bool:
+    def est_bootstrap(self) -> bool:
         self.est_client = EstClient(**self.est_kwargs)
         if self.est_client.self_initialise() is True:
             self.certificate = self.est_client.iot_cert_bytes
             self.private_key = self.est_client.iot_key_bytes
-            if save:
-                save_to_disk("temp/iot_device.crt", self.certificate.decode('utf-8'))
+            if self.save_test_data is True:
+                write_to_file(self.iot_device_cert_path, self.certificate.decode('utf-8'))
+                write_to_file(self.iot_device_key_path, self.private_key.decode('utf-8'))
             return True
         else:
             return False
 
-    def get_root_ca(self, save: bool = False) -> bool:
+    def get_root_ca(self) -> bool:
+        """
+        Collect the CA required to connect to AWS Iot Core: It is always the 'Amazon Root CA 1'
+        :return:
+        """
         try:
             r = requests.get(IOT_CORE_CA_URL, timeout=self.http_timeout)
             self.root_ca = r.content
-            if save is True:
-                save_to_disk("./temp/iot_core_root_ca.pem", self.root_ca.decode('utf-8'))
+            if self.save_test_data is True:
+                write_to_file(self.iot_core_ca_path, self.root_ca.decode('utf-8'))
             return True
         except Exception as e:
             print("Got exception when fetching AWS IoT Root CA from URL {}: {}".format(IOT_CORE_CA_URL, e))
@@ -384,7 +442,7 @@ class IotClient(object):
         Connects to AWS IoT Core
         :return: nothing
         """
-        if not self.est_client or skip_est is True:
+        if not self.est_client or skip_est is False:
             if self.est_bootstrap() is False:
                 raise Exception("Failed to bootstrap EST Client")
         if not self.root_ca:
@@ -473,22 +531,17 @@ class IotClient(object):
         print("Published: {}".format(result))
         return True
 
-    def renew_certificate(self, save: bool = False) -> dict:
+    def renew_certificate(self) -> dict:
+        certificate_prev = self.certificate
+        private_key_prev = self.private_key
         r = self.est_client.simplereenroll()
         if r['status_code'] == 200:
-            self.certificate_prev = self.certificate
-            self.private_key_prev = self.private_key
+            self.certificate_prev = certificate_prev
+            self.private_key_prev = private_key_prev
             self.certificate = self.est_client.iot_cert_bytes
             self.private_key = self.est_client.iot_key_bytes
-            if save:
-                save_to_disk("./temp/iot_device_prev.crt", self.certificate_prev.decode('utf-8'))
-                save_to_disk("./temp/iot_device_prev.key", self.private_key_prev.decode('utf-8'))
-                save_to_disk("./temp/iot_device.crt", self.certificate.decode('utf-8'))
-                save_to_disk("./temp/iot_device.key", self.private_key.decode('utf-8'))
+            if self.save_test_data is True:
+                write_to_file(self.iot_device_cert_path, self.certificate.decode('utf-8'))
+                write_to_file(self.iot_device_key_path, self.private_key.decode('utf-8'))
             print("Device Cert and Key updated")
         return r
-
-
-def save_to_disk(filename: str, data: str):
-    with open(filename, "w") as f:
-        f.write(data)

@@ -10,6 +10,6 @@ mtls_key_pem: null
 mqtt_topic: "messages/<thing_name>/hello"
 # Set to true to save IoT Core certificates and keys generated during the test to disk in
 # <current_dir>/temp/
-save_iot_creds_to_disk: true
+save_test_data: true
 # Timeout in seconds for http requests
 http_timeout: 20
