@@ -22,9 +22,11 @@ Properties:
   iotPolicyPath: "config/iot_policy_default.json"
   iotPolicyName: "est_iot_policy_default"
   iotDeviceCertValidityYears: 1
-  # Lambda functions (applies to all, can be modified individually with function environment variable)
+  # Lambda functions (applies to all. Log level can be modified individually with function environment variable)
   lambdaLoggerLevel: "INFO"
   lambdaTimeoutSeconds: 60
+  # API Gateway
+  apiGatewayIntegrationTimeoutSeconds: 30
   # Customization
   customSecretName: "customSecret"
 

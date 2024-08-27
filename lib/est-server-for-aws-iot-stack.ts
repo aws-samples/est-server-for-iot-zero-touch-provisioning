@@ -31,6 +31,7 @@ export class EstServerForAwsIotStack extends cdk.Stack {
         const strictHeadersCheck = estConfig.Properties.apiStrictHeadersCheck;
         const deviceCertValidityYears: number = estConfig.Properties.iotDeviceCertValidityYears;
         const lambdaTimeoutSeconds: number = estConfig.Properties.lambdaTimeoutSeconds;
+        const apiGwTimeoutSec: number = estConfig.Properties.apiGatewayIntegrationTimeoutSeconds;
 
         // Create the Lambda layers containing reusable functions
         const CommonLambdaLayer = new python.PythonLayerVersion(this, "est-layer-utils" + id, {
@@ -209,6 +210,7 @@ export class EstServerForAwsIotStack extends cdk.Stack {
             new cdk.aws_apigateway.LambdaIntegration(ld_cacerts.lambda, {
                 passthroughBehavior: cdk.aws_apigateway.PassthroughBehavior.WHEN_NO_TEMPLATES,
                 proxy: true,
+                timeout: cdk.Duration.seconds(apiGwTimeoutSec),
                 }),
     {
                 requestValidator: requestValidator,
@@ -228,7 +230,8 @@ export class EstServerForAwsIotStack extends cdk.Stack {
         );
         re_csrattrs.addMethod("GET", new cdk.aws_apigateway.LambdaIntegration(ld_csrattrs.lambda, {
                 passthroughBehavior: cdk.aws_apigateway.PassthroughBehavior.WHEN_NO_TEMPLATES,
-                proxy: true
+                proxy: true,
+                timeout: cdk.Duration.seconds(apiGwTimeoutSec),
             }));
 
         // Server Key Generation request
@@ -244,6 +247,7 @@ export class EstServerForAwsIotStack extends cdk.Stack {
             new cdk.aws_apigateway.LambdaIntegration(ld_serverkeygen.lambda, {
                 passthroughBehavior: cdk.aws_apigateway.PassthroughBehavior.WHEN_NO_TEMPLATES,
                 proxy: true,
+                timeout: cdk.Duration.seconds(apiGwTimeoutSec),
             }),
     {
                 requestValidator: requestValidator,
@@ -263,6 +267,7 @@ export class EstServerForAwsIotStack extends cdk.Stack {
             new cdk.aws_apigateway.LambdaIntegration(ld_simpleenroll.lambda, {
                 passthroughBehavior: cdk.aws_apigateway.PassthroughBehavior.WHEN_NO_TEMPLATES,
                 proxy: true,
+                timeout: cdk.Duration.seconds(apiGwTimeoutSec),
             }),
     {
                 requestValidator: requestValidator,
@@ -282,6 +287,7 @@ export class EstServerForAwsIotStack extends cdk.Stack {
             new cdk.aws_apigateway.LambdaIntegration(ld_simplereenroll.lambda, {
                 passthroughBehavior: cdk.aws_apigateway.PassthroughBehavior.WHEN_NO_TEMPLATES,
                 proxy: true,
+                timeout: cdk.Duration.seconds(apiGwTimeoutSec),
             }),
     {
                 requestValidator: requestValidator,
