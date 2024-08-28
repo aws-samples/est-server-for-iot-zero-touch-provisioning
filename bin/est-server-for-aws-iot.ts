@@ -22,7 +22,7 @@ const estStack = new EstServerForAwsIotStack(app, 'EstServerForAwsIotStack', {
 });
 
 // Create an application in AWS Service Catalog
-cdk.Tags.of(estStack).add("APPLICATION", "EST Server for AWS IoT")
+cdk.Tags.of(estStack).add("APPLICATION", "EST_Server_for_AWS_IoT")
 // Use cdk-nag to inspect the stack for common problems
 cdk.Aspects.of(app).add(new AwsSolutionsChecks( {verbose: true} ));
 

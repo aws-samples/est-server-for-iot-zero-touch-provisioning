@@ -13,3 +13,5 @@ mqtt_topic: "messages/<thing_name>/hello"
 save_test_data: true
 # Timeout in seconds for http requests
 http_timeout: 20
+# CSR key size
+csr_key_size: 4096

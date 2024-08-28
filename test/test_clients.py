@@ -29,6 +29,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 import base64 as b64
 import os
 import datetime
+import json
 
 IOT_CORE_CA_URL = "https://www.amazontrust.com/repository/AmazonRootCA1.pem"
 
@@ -89,7 +90,7 @@ class EstClient(object):
 
     def __init__(self, thing_name: str, est_api_domain: str, est_api_cert: str,
                  mtls_cert_pem: str, mtls_key_pem: str, save_test_data: bool = True,
-                 http_timeout: [int, float] = 20):
+                 http_timeout: [int, float] = 20, csr_key_size: int = 4096):
         """
         :param thing_name: the Thing name
         :param est_api_domain:  The EST API FQN
@@ -108,6 +109,7 @@ class EstClient(object):
         self.save_test_data = save_test_data
         self.http_timeout = http_timeout
         self.csrattrs = None
+        self.csr_key_size = csr_key_size
 
         self.cacerts = None
         self.iot_device_key = None
@@ -115,7 +117,7 @@ class EstClient(object):
         self.iot_device_cert = None
 
         self.files_base_path = os.path.normpath("./test_data/est_client/{}".format(
-            datetime.datetime.now().isoformat(timespec='seconds')))
+            datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")))
         os.makedirs(self.files_base_path, exist_ok=True)
 
         self.est_api_cert_path = os.path.join(self.files_base_path, "api_ca.pem")
@@ -127,7 +129,7 @@ class EstClient(object):
         self.iot_device_key_path = os.path.join(self.files_base_path, "iot_device.key")
         self.iot_device_cert_path = os.path.join(self.files_base_path, "iot_device.crt")
 
-        self.make_csr()
+        self.make_csr(key_size=self.csr_key_size)
         self.default_headers = {
             "Accept": "*/*",
             "Content-Type": "application/pkcs10",
@@ -219,7 +221,7 @@ class EstClient(object):
             "content": r.content
         }
 
-    def make_csr(self, attributes: dict or None = None) -> None:
+    def make_csr(self, attributes: dict or None = None, key_size: int = 4096) -> None:
         """
         Creates and stores a CSR for this IoT Device. If called several times, new CSR and key is generated and stored,
         overwriting the previous one.
@@ -227,7 +229,7 @@ class EstClient(object):
         """
         self.iot_device_key = rsa.generate_private_key(
             public_exponent=65537,
-            key_size=4096,
+            key_size=key_size,
         )
         if not attributes:
             attributes = {
@@ -306,7 +308,7 @@ class EstClient(object):
         :returns: dict with response elements crt, status_code, headers, content
         """
         # Create a new CSR before calling the signing endpoint. It also creates a new key as if it was rolled on the device
-        self.make_csr()
+        self.make_csr(key_size=self.csr_key_size)
         r = self._enrollment_call(headers, content, "/simplereenroll")
         if r.status_code == 200:
             pkcs7_certs = pkcs7.load_der_pkcs7_certificates(b64.b64decode(r.content))
@@ -334,10 +336,12 @@ class EstClient(object):
         resp = self.get_cacerts()
         if not resp['status_code'] == 200:
             print("Failed to boostrap from /cacerts")
+            print("Response is: {}".format(json.dumps(resp)))
             return False
         resp = self.simpleenroll()
         if not resp['status_code'] == 200:
             print("Failed to boostrap from /simpleenroll")
+            print("Response is: {}".format(json.dumps(resp)))
             return False
         return True
 
@@ -364,7 +368,7 @@ class IotClient(object):
         self.save_test_data = save_test_data
         self.http_timeout = http_timeout
         self.files_base_path = os.path.normpath("./test_data/iot_client/{}".format(
-            datetime.datetime.now().isoformat(timespec='seconds')))
+            datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")))
         self.iot_core_ca_path = os.path.join(self.files_base_path, "iot_core_root_ca.pem")
         self.iot_device_cert_path = os.path.join(self.files_base_path, "iot_device.crt")
         self.iot_device_key_path = os.path.join(self.files_base_path, "iot_device.key")
@@ -546,4 +550,7 @@ class IotClient(object):
                 write_to_file(self.iot_device_cert_path, self.certificate.decode('utf-8'))
                 write_to_file(self.iot_device_key_path, self.private_key.decode('utf-8'))
             print("Device Cert and Key updated")
+        else:
+            print("Failed to renew certificate")
+            print("Response is: {}".format(r))
         return r
