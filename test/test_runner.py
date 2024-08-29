@@ -30,6 +30,7 @@ class Init(object):
         self.save_test_data = self.test_config['save_test_data']
         self.endpoint = self.test_config['iot_endpoint']
         self.csr_key_size = self.test_config['csr_key_size']
+        self.connect_with_cn_for_thing_name = self.test_config['connect_with_cn_for_thing_name']
         if not self.test_config['mtls_cert_pem'] or not self.test_config['mtls_key_pem']:
             print("mTLS credentials not provided, attempting to read from AWS Cloud ASM")
             self.asm_client = boto3.client('secretsmanager')
@@ -149,12 +150,12 @@ class Test02IotClient(unittest.TestCase):
         cls.init = Init()
         cls.api_domain = cls.init.api_domain
         cls.thing_name = "estThing-{}".format(uuid4())
-        cls.topic = cls.init.topic.replace("<thing_name>", cls.thing_name)
         print("IoT Thing name under test: {}".format(cls.thing_name))
         cls.est_api_domain = cls.init.api_domain,
         cls.est_api_cert = cls.init.api_cert,
         cls.mtls_cert_pem = cls.init.mtls_cert_pem,
         cls.mtls_key_pem = cls.init.mtls_key_pem
+        cls.connect_with_cn_for_thing_name = cls.init.connect_with_cn_for_thing_name
         cls.b3client = boto3.client('iot')
         if cls.init.endpoint:
             cls.endpoint = cls.init.endpoint
@@ -170,6 +171,7 @@ class Test02IotClient(unittest.TestCase):
             http_timeout=cls.init.http_timeout,
             save_test_data=cls.init.save_test_data,
             csr_key_size=cls.init.csr_key_size,
+            patch_thing_name=cls.connect_with_cn_for_thing_name
         )
         cls.iot_client = IotClient(
             thing_name=cls.thing_name,
@@ -178,16 +180,17 @@ class Test02IotClient(unittest.TestCase):
             est_client_kwargs=cls.est_client_kwargs,
             save_test_data=cls.init.save_test_data,
             http_timeout=cls.init.http_timeout,
+            connect_with_cn_for_thing_name = cls.connect_with_cn_for_thing_name
         )
         cls.setup_done = True
 
     @classmethod
     def tearDownClass(cls):
         cls.iot_client.disconnect()
-        delete_thing(cls.thing_name)
+        delete_thing(cls.iot_client.used_thing_name)
 
     def assert_publish(self, topic: str, message: str):
-        print("Publishing to topic: {}".format(self.topic))
+        print("Publishing to topic: {}".format(topic))
         r = self.iot_client.publish(topic, message)
         self.assertTrue(r, "Publishing to topic should be successful")
         time.sleep(2)
@@ -201,6 +204,9 @@ class Test02IotClient(unittest.TestCase):
         print("Subscribing to topic: {}".format(topic))
         r = self.iot_client.subscribe(topic)
         self.assertTrue(r, "Subscription to topic should be successful")
+
+    def get_topic(self):
+        return self.init.topic.replace("<thing_name>", self.iot_client.used_thing_name)
 
     def test_01(self):
         """
@@ -218,13 +224,13 @@ class Test02IotClient(unittest.TestCase):
         """
         Test subscription to right topic
         """
-        self.assert_subscribe(self.topic)
+        self.assert_subscribe(self.get_topic())
 
     def test_03(self):
         """
         Assert publication
         """
-        self.assert_publish(self.topic, "Hello from test case 03")
+        self.assert_publish(self.get_topic(), "Hello from test case 03")
 
     def test_04(self):
         """
@@ -248,13 +254,13 @@ class Test02IotClient(unittest.TestCase):
         """
         Assert subscription after certificate renewal
         """
-        self.assert_subscribe(self.topic)
+        self.assert_subscribe(self.get_topic())
 
     def test_06(self):
         """
         Assert publication after certificate renewal
         """
-        self.assert_publish(self.topic, "Hello from test case 06")
+        self.assert_publish(self.get_topic(), "Hello from test case 06")
 
 
 def delete_thing(thing_name: str):

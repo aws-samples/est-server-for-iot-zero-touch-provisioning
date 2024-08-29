@@ -15,3 +15,5 @@ save_test_data: true
 http_timeout: 20
 # CSR key size
 csr_key_size: 4096
+# Use Certificate CN as Thing Name if True otherwise use a self-generated thing name (normal case)
+connect_with_cn_for_thing_name: true

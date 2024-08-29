@@ -187,12 +187,20 @@ def lambda_handler(event, context):
             cmn.logger.warn("Certificate generation not enabled. No action!")
         return
 
-    # We can update the certificates and key
-    cert, key = cmn.create_self_signed_root_ca(attributes=attributes, validity_years=CA_VALIDITY_YEARS)
-    # Store the certificate and key in Secrets Manager
-    cert_pem = cmn.cert_to_pem(cert)
-    update_secret(CA_CERT_SECRET_NAME, cert_pem)
-    update_secret(CA_KEY_SECRET_NAME, cmn.private_key_to_pem(key))
+
+    if not cert_value.startswith("-----BEGIN CERTIFICATE-----"):
+        # We can update the certificates and key
+        cmn.logger.info("Creating self-signed certificate as IoT Core CA.")
+        cert, key = cmn.create_self_signed_root_ca(attributes=attributes, validity_years=CA_VALIDITY_YEARS)
+        # Store the certificate and key in Secrets Manager
+        cert_pem = cmn.cert_to_pem(cert)
+        update_secret(CA_CERT_SECRET_NAME, cert_pem)
+        update_secret(CA_KEY_SECRET_NAME, cmn.private_key_to_pem(key))
+    else:
+        cmn.logger.warning("Certificate already exists in Secret {}. This value will be used to register the "
+                           "certificate to IoT Core. No new CA created!".format(
+            CA_CERT_SECRET_NAME))
+        cert_pem = cert_value
 
     if REGISTER_CA is True:
         register_ca_once(cert_pem, PROV_TEMPLATE_NAME)

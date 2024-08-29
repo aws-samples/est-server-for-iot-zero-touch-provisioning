@@ -90,7 +90,8 @@ class EstClient(object):
 
     def __init__(self, thing_name: str, est_api_domain: str, est_api_cert: str,
                  mtls_cert_pem: str, mtls_key_pem: str, save_test_data: bool = True,
-                 http_timeout: [int, float] = 20, csr_key_size: int = 4096):
+                 http_timeout: [int, float] = 20, csr_key_size: int = 4096,
+                 patch_thing_name: bool = False):
         """
         :param thing_name: the Thing name
         :param est_api_domain:  The EST API FQN
@@ -100,7 +101,10 @@ class EstClient(object):
         :param save_test_data: If True certificates, keys and CSR are saved to disk
         :param http_timeout: timeout for http response
         """
-        self.thing_name = thing_name
+        if patch_thing_name is True:
+            self.thing_name = thing_name + "-patched"
+        else:
+            self.thing_name = thing_name
         self.est_uri = est_api_domain
         self.est_api_cert = est_api_cert
         self.est_url = "https://{}/.well-known/est".format(est_api_domain)
@@ -352,12 +356,14 @@ class IotClient(object):
     """
 
     def __init__(self, thing_name: str, endpoint: str, port: int or None, est_client_kwargs: dict, save_test_data: bool,
-                 http_timeout: [int, float] = 20):
+                 http_timeout: [int, float] = 20, connect_with_cn_for_thing_name: bool = False):
         self.thing_name = thing_name
         self.endpoint = endpoint
         self.port = port
         self.root_ca = None
         self.certificate = None
+        self.connect_with_cn_for_thing_name = connect_with_cn_for_thing_name
+        self.cn_thing_name = None
         self.private_key = None
         self.certificate_prev = None
         self.private_key_prev = None
@@ -384,7 +390,11 @@ class IotClient(object):
     def mqtt_messages(self) -> dict:
         return self.messages
 
-    def set_iot_creds(self, ca_certificate: str, device_certificate: str, device_private_key: str):
+    @property
+    def used_thing_name(self) -> str:
+        return self.cn_thing_name if self.connect_with_cn_for_thing_name else self.thing_name
+
+    def set_iot_creds(self, ca_certificate: bytes, device_certificate: bytes, device_private_key: bytes):
         """
         Force setting the credentials for connecting to IoT Core.
         :param ca_certificate: PEM format
@@ -395,6 +405,8 @@ class IotClient(object):
         self.root_ca = ca_certificate
         self.certificate = device_certificate
         self.private_key = device_private_key
+        if self.connect_with_cn_for_thing_name is True:
+            self.cn_thing_name = self.get_cn_from_cert(self.certificate)
 
     def on_connection_interrupted(self, connection, error, **kwargs):
         print("Connection interrupted")
@@ -421,6 +433,8 @@ class IotClient(object):
         if self.est_client.self_initialise() is True:
             self.certificate = self.est_client.iot_cert_bytes
             self.private_key = self.est_client.iot_key_bytes
+            if self.connect_with_cn_for_thing_name is True:
+                self.cn_thing_name = self.get_cn_from_cert(self.certificate)
             if self.save_test_data is True:
                 write_to_file(self.iot_device_cert_path, self.certificate.decode('utf-8'))
                 write_to_file(self.iot_device_key_path, self.private_key.decode('utf-8'))
@@ -459,7 +473,7 @@ class IotClient(object):
             self.disconnect()
 
         self.mqtt_connection = mqtt_connection_builder.mtls_from_bytes(
-            client_id=self.thing_name,
+            client_id=self.thing_name if self.connect_with_cn_for_thing_name is False else self.cn_thing_name,
             endpoint=self.endpoint,
             cert_bytes=self.certificate,
             pri_key_bytes=self.private_key,
@@ -546,6 +560,8 @@ class IotClient(object):
             self.private_key_prev = private_key_prev
             self.certificate = self.est_client.iot_cert_bytes
             self.private_key = self.est_client.iot_key_bytes
+            if self.connect_with_cn_for_thing_name is True:
+                self.cn_thing_name = self.get_cn_from_cert(self.certificate)
             if self.save_test_data is True:
                 write_to_file(self.iot_device_cert_path, self.certificate.decode('utf-8'))
                 write_to_file(self.iot_device_key_path, self.private_key.decode('utf-8'))
@@ -554,3 +570,14 @@ class IotClient(object):
             print("Failed to renew certificate")
             print("Response is: {}".format(r))
         return r
+
+    @staticmethod
+    def get_cn_from_cert(cert_pem: bytes) -> str:
+        """
+        Returns the CN as String
+        :param cert_pem:
+        :return:
+        """
+        cert = x509.load_pem_x509_certificate(cert_pem, None)
+        cn = cert.subject.get_attributes_for_oid(x509.oid.NameOID.COMMON_NAME)[0].value
+        return cn
