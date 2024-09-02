@@ -448,6 +448,7 @@ class IotClient(object):
         :return:
         """
         try:
+            print("Fetching IoT Core Root CA")
             r = requests.get(IOT_CORE_CA_URL, timeout=self.http_timeout)
             self.root_ca = r.content
             if self.save_test_data is True:
@@ -462,7 +463,8 @@ class IotClient(object):
         Connects to AWS IoT Core
         :return: nothing
         """
-        if not self.est_client or skip_est is False:
+        if not self.est_client and skip_est is False:
+            print("Bootstrapping EST Client")
             if self.est_bootstrap() is False:
                 raise Exception("Failed to bootstrap EST Client")
         if not self.root_ca:

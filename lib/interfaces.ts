@@ -1,3 +1,7 @@
+export interface Tag {
+    key: NonNullable<string>,
+    value: NonNullable<string>
+}
 
 export interface EstConfig {
     // Interface for the .configuration file
@@ -44,6 +48,8 @@ export interface EstConfig {
         generateIotCaCertificate: NonNullable<boolean>
         // If 'true' IoT Core will be configured for JITP
         configureJITP: NonNullable<boolean>
+        // Tags that will be applied to the Stack and all resources
+        tags: Tag[]
     }
 }
 

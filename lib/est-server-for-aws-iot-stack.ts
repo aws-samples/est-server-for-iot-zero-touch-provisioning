@@ -21,6 +21,13 @@ export class EstServerForAwsIotStack extends cdk.Stack {
         const unparsedParams = fs.readFileSync(path.resolve(configFile), "utf-8")
         const estConfig = yamlParse(unparsedParams) as EstConfig
 
+        // Apply additional tags present in the config file to this stack and children
+        if (estConfig.DeploymentOptions['tags'] !== undefined) {
+            for (let tag of estConfig.DeploymentOptions.tags) {
+                cdk.Tags.of(this).add(tag.key, tag.value)
+            }
+        }
+
         // Create the resources used at large by this application
         const common = new CommonResources(this, "Common Resources");
         const encryptionKey = common.encryptionKey;

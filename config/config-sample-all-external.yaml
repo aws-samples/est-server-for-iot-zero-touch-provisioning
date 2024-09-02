@@ -42,3 +42,9 @@ DeploymentOptions:
   generateIotCaCertificate: false
   # If 'true' IoT Core will be configured for JITP
   configureJITP: true
+  # Tags that will be applied to the Stack and all resources
+  tags:
+    - key: "CostCenter"
+      value: "My cost center"
+    - key: "DeploymentEnvironment"
+      value: "Demonstrator"
