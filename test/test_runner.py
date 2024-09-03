@@ -80,7 +80,8 @@ class Test01EstServer(unittest.TestCase):
             r = requests.get(url="https://{}/.well-known/est/cacerts".format(self.api_domain),
                              headers={"Accept": "application/pkcs7-mime"}, timeout=20)
         self.assertIsInstance(cm.exception, requests.exceptions.ConnectionError)
-        self.assertEqual("Connection reset by peer", cm.exception.args[0].args[1].args[1])
+        self.assertIn(cm.exception.args[0].args[1].args[1],
+                      ["An existing connection was forcibly closed by the remote host", "Connection reset by peer"])
 
     def test_02(self):
         """
