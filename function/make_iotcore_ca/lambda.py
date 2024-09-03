@@ -167,7 +167,8 @@ def lambda_handler(event, context):
                 )
                 cmn.logger.info("External CA private key deleted from S3 for security "
                                 "reasons.\nResponse is: {}".format(response))
-            except Exception as e:  # nosec Bandit suppression: we ignore the exception if the object doesn't exist
+            except Exception as e:  #nosec B110
+                # Bandit suppression: we ignore the exception if the object doesn't exist
                 pass
         try:
             response = s3_client.delete_object(
@@ -176,7 +177,8 @@ def lambda_handler(event, context):
             )
             cmn.logger.info("External CA certificate deleted from S3 for security "
                             "reasons.\nResponse is: {}".format(response))
-        except Exception as e:  # nosec Bandit suppression: we ignore the exception if the object doesn't exist
+        except Exception as e: #nosec B110
+            # Bandit suppression: we ignore the exception if the object doesn't exist
             pass
         return
 

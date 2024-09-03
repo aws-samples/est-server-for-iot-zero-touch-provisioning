@@ -57,7 +57,7 @@
     },
     {
       "name": "certifi",
-      "version": "2024.7.4",
+      "version": "2024.8.30",
       "vulns": []
     },
     {
@@ -82,7 +82,7 @@
     },
     {
       "name": "idna",
-      "version": "3.7",
+      "version": "3.8",
       "vulns": []
     },
     {
@@ -107,7 +107,7 @@
     },
     {
       "name": "rich",
-      "version": "13.7.1",
+      "version": "13.8.0",
       "vulns": []
     },
     {
@@ -162,7 +162,7 @@
     },
     {
       "name": "pbr",
-      "version": "6.0.0",
+      "version": "6.1.0",
       "vulns": []
     },
     {
@@ -197,7 +197,7 @@
     },
     {
       "name": "pyparsing",
-      "version": "3.1.2",
+      "version": "3.1.4",
       "vulns": []
     },
     {
