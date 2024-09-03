@@ -302,6 +302,8 @@ def delete_certificates(thing_name, certificates: list, iot_client: boto3.client
     :param iot_client:
     :return:
     """
+    if not thing_name:
+        return
     for cert in certificates:
         cert_id = cert.split('/')[1]
         policies = [p['policyName'] for p in iot_client.list_principal_policies(principal=cert)['policies']]

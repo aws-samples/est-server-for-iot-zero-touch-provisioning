@@ -148,7 +148,7 @@ class EstClient(object):
     @property
     def iot_key_bytes(self) -> bytes:
         return self.iot_device_key.private_bytes(encoding=serialization.Encoding.PEM,
-                                                 format=serialization.PrivateFormat.PKCS8,
+                                                 format=serialization.PrivateFormat.TraditionalOpenSSL,
                                                  encryption_algorithm=serialization.NoEncryption())
 
     @property
@@ -267,7 +267,7 @@ class EstClient(object):
             write_to_file(self.iot_device_csr_path, self.iot_device_csr.public_bytes(encoding=serialization.Encoding.PEM).decode('utf-8'))
             write_to_file(self.iot_device_key_path, self.iot_device_key.private_bytes(
                     encoding=serialization.Encoding.PEM,
-                    format=serialization.PrivateFormat.PKCS8,
+                    format=serialization.PrivateFormat.TraditionalOpenSSL,
                     encryption_algorithm=serialization.NoEncryption(),
                 ).decode("utf-8"))
 
