@@ -23,7 +23,6 @@ in just a few minutes. We will go in details in the next sections, but for now l
     * [You already have a CA Trust Chain for mTLS and you use an external PKI for signing the devices](#you-already-have-a-ca-trust-chain-for-mtls-and-you-use-an-external-pki-for-signing-the-devices)
     * [Pro-tips](#pro-tips)
     * [About re-enrollment](#about-re-enrollment)
-    * [About the device CSR](#about-the-device-csr)
   * [Setting-up your environment](#setting-up-your-environment)
     * [Pre-requisites](#pre-requisites)
     * [Clone the repo](#clone-the-repo)
@@ -209,6 +208,7 @@ which we will refer to as the *Client Certificate*.
 
 We are here looking at the calls to the EST API endpoints by the client. 
 And this is not to be confused with the *Device Certificate* used for the IoT operations (interaction with IoT Core).
+The mTLS and IoT certificates most likely come from two different Signing Authorities.
 
 ## Understanding the application features and architecture
 
@@ -307,7 +307,7 @@ If you do not provide the Truststore (use empty string ""), the deployment will:
 * Create a self-signed CA certificate for mTLS
 * Create a Truststore, place it in S3 and configure API Gateway accordingly
 * Store the CA Certificate and Private Key in ASM
-* Create a sample client certificate, key and pfx files and store them in S3 (same bucket as the RTruststore 
+* Create a sample client certificate, key and pfx files and store them in S3 (same bucket as the Truststore 
 under client/) as well as in ASM. Note that this is provided as a quick way to test the application and should not be
 used for production due to security reasons.
 
@@ -353,7 +353,7 @@ directory. You should verify and potentially customise them before deploying.
 
 Important: 
 * The IoT policy uses the placeholders
-"<ACCOUNT_ID>" and "<REGION>" which are dynamically replaced during deployment with the targeted AWS account and region.
+`<ACCOUNT_ID>` and `<REGION>` which are dynamically replaced during deployment with the targeted AWS account and region.
 * The provisioning template element `template.Resources.policy.Properties.PolicyDocument == ""` is also updated 
 dynamically during deployment with the name of the IoT policy that was created.
 
