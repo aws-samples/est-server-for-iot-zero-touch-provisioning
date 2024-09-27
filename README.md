@@ -54,6 +54,7 @@ in just a few minutes. We will go in details in the next sections, but for now l
     * [Enrollment hooks](#enrollment-hooks)
     * [Re-enrollment hooks](#re-enrollment-hooks)
   * [Testing your deployment](#testing-your-deployment)
+  * [Cleanup / Stack deletion](#cleanup--stack-deletion)
 <!-- TOC -->
 
 ## Flash Start
@@ -87,6 +88,10 @@ No worries, they will be generated for you
 1. Give a look at the IoT Policy `config/iot_policy_default.json`, make a copy and modify as necessary
 1. If you copied the IoT Policy input its new path/name in the configuration file
 1. `cdk deploy --all`
+1. Update your DNS to point your AGW domain name to the API Gateway instance:
+   1. With Route53: Create record / Record type: A / Enable "Alias" / Route traffic to: "API Gateway" / Chose region / 
+   paste the API Gateway domain name (API Gateway / Custom domain names / Your domain -> under "Endpoint configuration")
+   1. Wait for the DNS change propagates...
 
 Et voilà!
 
@@ -94,8 +99,9 @@ Et voilà!
 All is stored in AWS Secrets Manager (ASM).
 * A self-signed root CA has been generated and AGW configured to use it for mTLS. A client certificate, private key and 
 pfx file have been generated and signed by this CA. They are all stored in ASM, and a set of sample client files is also
-present in the Truststore bucket (see AWS CloudFormation stack outputs). You can install the client cert in postman for 
-testing. Best is to have the client certs generated and signed at the device factory.
+present in the Truststore bucket (see AWS CloudFormation stack outputs). You can run a [quick automated test](#Testing-your-deployment) 
+or install the client cert in postman and run tests manually. 
+Best is to have the client certs generated and signed at the device factory.
 
 ### You already have a CA Trust Chain for mTLS and you use an external PKI for signing the devices
 In this case, you just have to pass the files in the config file. Make sure they are available locally in your dev
@@ -136,8 +142,10 @@ then have to figure out how to do that!
 ## Setting-up your environment
 
 ### Pre-requisites
+The following resource must be installed on the deployment machine:
 * Node.js version 18.x or above, as supported by the current version of aws-cdk (tested with 18.19)
 * Python (tested with 3.12)
+* Docker (used by the `aws-lambda-python-alpha` CDK library to build functions and layers for target environment)
 * You have fresh credentials to the target AWS Account
 
 ### Clone the repo
@@ -448,13 +456,78 @@ for registering a certificate renewal (when calling `/simplereenroll` a device g
 registered in IoT Core for the device to connect with the new certificate. JITP will not work for an existing Thing).
 
 Configuration of the test can be done via [test/test_config.yaml](test/test_config.yaml).
-A temp directory will be created in your current directory and will.
-[test_clients.py](test/test_clients.py) is used for the testes and is also a reference implementation of an EST client and an IoT Device 
+
+A directory called `test_data` will be created in your current directory with subdirectories `est_client` and `iot_Client`
+matching the two types of tests executed. In these subdirectories you'll find another subdirectory with a name matching
+the test execution date and time, where certificates, keys and CSR are stored for further analysis.
+
+[test_clients.py](test/test_clients.py) is used for the tests and is also a reference implementation of an EST client and an IoT Device 
 using EST for bootstrapping.
 
 Running the tests requires `Administrator` or `PowerUserAccess` privileges because it uses boto3 to access some 
-information on the AWS account.
+information on the AWS account (read-only).
 
-The testing is "clean": the resources created in IoT Core (tThing and Certificates) are deleted at the end. The Thing Name
+The testing is "clean": the resources created in IoT Core (Thing and Certificates) are deleted at the end. The Thing Name
 uses a UUID to reduce risks of colliding with existing resources.
 
+## Troubleshooting
+You might experience difficulties when using an external CA for the API Gateway mTLS. Using an external CA
+is the recommended way since, in principle, an IoT device comes with a certificate signed at manufacturing time.
+
+In this case you need to build a Truststore including all the intermediate certificates up to the Root CA and use it 
+for API gateway mTLS configuration.
+This Truststore might not be right at the beginning, and you will receive an error 403.
+In this case you have to aim at CloudWatch and look for the API Gateway Execution and Access logs.
+The Access logs will show the cause of the error but won't provide sufficient details to analyse the cause. You can use
+the JSON below to increase the log details (API Gateway / Stages / prod - Edit Logs and Tracing - paste in Log format):
+
+```json
+{
+    "accountId": "$context.accountId",
+    "apiId": "$context.apiId",
+    "domainName": "$context.domainName",
+    "domainPrefix": "$context.domainPrefix",
+    "error.message": "$context.error.message",
+    "error.responseType": "$context.error.responseType",
+    "extendedRequestId": "$context.extendedRequestId",
+    "httpMethod": "$context.httpMethod",
+    "identity.sourceIp": "$context.identity.sourceIp",
+    "identity.clientCert.clientCertPem": "$context.identity.clientCert.clientCertPem",
+    "identity.clientCert.subjectDN": "$context.identity.clientCert.subjectDN",
+    "identity.clientCert.issuerDN": "$context.identity.clientCert.issuerDN",
+    "identity.clientCert.serialNumber": "$context.identity.clientCert.serialNumber",
+    "identity.clientCert.validity.notBefore": "$context.identity.clientCert.validity.notBefore",
+    "identity.clientCert.validity.notAfter": "$context.identity.clientCert.validity.notAfter",
+    "identity.userAgent": "$context.identity.userAgent",
+    "path": "$context.path",
+    "protocol": "$context.protocol",
+    "requestId": "$context.requestId",
+    "requestTime": "$context.requestTime",
+    "requestTimeEpoch": "$context.requestTimeEpoch",
+    "resourceId": "$context.resourceId",
+    "resourcePath": "$context.resourcePath",
+    "stage": "$context.stage",
+    "responseLatency": "$context.responseLatency",
+    "responseLength": "$context.responseLength",
+    "status": "$context.status"
+}
+```
+
+## Cleanup / Stack deletion
+If you want to delete the stack you need to take a few actions BEFORE. 
+After stack deletion you will also have to do some manual cleanup. 
+
+**Before deleting the Stack:**
+* Detach the IoT Provisioning template from the CA:
+
+    Iot Core / Connect many device / Select provisioning template / CAs / Detach
+
+**After deleting the Stack:**
+* Deactivate and then delete the Iot Core CA Certificate 
+* Delete the 5 Secrets: ASM does not allow to delete secrets immediately (min 7 days). 
+If you want oto re-deploy the stack, either change secrets name in the config file or wait 7 days.
+* CloudWatch Logs
+* S3 buckets
+
+The resources should be easy to identify from their name starting with "est" or "EST" 
+or from the Tag `APPICATION` set to `EST_Server_for_AWS_IoT` (unless you made changes).

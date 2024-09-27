@@ -8,6 +8,8 @@ from uuid import uuid4
 import json
 import requests
 import time
+from urllib3 import exceptions as urllib3_exceptions
+from http.client import RemoteDisconnected
 
 TEST_CFG_FILE = "test_config.yaml"
 
@@ -51,7 +53,7 @@ class Test01EstServer(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """
-        Setup the test environment ONCE (setUp method runs before each test)
+        Set up the test environment ONCE (setUp method runs before each test)
         :return: None
         """
         # raise unittest.SkipTest("Not running now")
@@ -80,8 +82,8 @@ class Test01EstServer(unittest.TestCase):
             r = requests.get(url="https://{}/.well-known/est/cacerts".format(self.api_domain),
                              headers={"Accept": "application/pkcs7-mime"}, timeout=20)
         self.assertIsInstance(cm.exception, requests.exceptions.ConnectionError)
-        self.assertIn(cm.exception.args[0].args[1].args[1],
-                      ["An existing connection was forcibly closed by the remote host", "Connection reset by peer"])
+        self.assertIsInstance(cm.exception.args[0], urllib3_exceptions.ProtocolError)
+        self.assertIsInstance(cm.exception.args[0].args[1], RemoteDisconnected)
 
     def test_02(self):
         """

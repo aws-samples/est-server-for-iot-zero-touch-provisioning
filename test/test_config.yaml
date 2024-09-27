@@ -9,7 +9,7 @@ mtls_key_pem: null
 # Use <thing_name> as a placeholder. It will be replaced by its value during the tests.
 mqtt_topic: "messages/<thing_name>/hello"
 # Set to true to save IoT Core certificates and keys generated during the test to disk in
-# <current_dir>/temp/
+# <current_dir>/test_data/
 save_test_data: true
 # Timeout in seconds for http requests
 http_timeout: 20
