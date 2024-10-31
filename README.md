@@ -1,4 +1,4 @@
-# Welcome to the EST Server for AWS IoT
+# Welcome to the EST Server for IoT Zero Touch Provisioning
 
 This CDK application deploys an Enrollment over Secure Transport (EST) server, which is a way for an IoT device to obtain
 a certificate without exposing any secret and without human intervention. It makes Zero-Trust and Zero-Touch possible.
@@ -16,7 +16,7 @@ in just a few minutes. We will go in details in the next sections, but for now l
 
 ## Content
 <!-- TOC -->
-* [Welcome to the EST Server for AWS IoT](#welcome-to-the-est-server-for-aws-iot)
+* [Welcome to the EST Server for IoT Zero Touch Provisioning](#welcome-to-the-est-server-for-iot-zero-touch-provisioning)
   * [Content](#content)
   * [Flash Start](#flash-start)
     * [You don't have any Root CA Certificate except for API Gateway custom domain name](#you-dont-have-any-root-ca-certificate-except-for-api-gateway-custom-domain-name)
@@ -54,6 +54,7 @@ in just a few minutes. We will go in details in the next sections, but for now l
     * [Enrollment hooks](#enrollment-hooks)
     * [Re-enrollment hooks](#re-enrollment-hooks)
   * [Testing your deployment](#testing-your-deployment)
+  * [Troubleshooting](#troubleshooting)
   * [Cleanup / Stack deletion](#cleanup--stack-deletion)
 <!-- TOC -->
 
