@@ -1,14 +1,14 @@
-boto3 == 1.34.*
-cryptography == 43.*
+boto3 == 1.35.53
+cryptography == 43.0.3
 # coming with boto3
 botocore
 awscrt
 # For running tests only
-awsiotsdk~=1.22.0
-requests~=2.32.3
-pyyaml~=6.0.2
-urllib3
-pip-system-certs # Required on Mas OS and venv to access the system Root Certificates
+awsiotsdk==1.22.0
+requests==2.32.3
+pyyaml==6.0.2
+urllib3==2.2.3
+pip-system-certs==4.0 # Required on Mas OS and venv to access the system Root Certificates
 # Code audit
-bandit # Required for code quality & security assessment
-pip-audit # Required for code quality & security assessment
+bandit==1.7.10 # Required for code quality & security assessment
+pip-audit==2.7.3 # Required for code quality & security assessment

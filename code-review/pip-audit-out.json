@@ -2,12 +2,12 @@
   "dependencies": [
     {
       "name": "boto3",
-      "version": "1.34.162",
+      "version": "1.35.53",
       "vulns": []
     },
     {
       "name": "cryptography",
-      "version": "43.0.0",
+      "version": "43.0.3",
       "vulns": []
     },
     {
@@ -31,13 +31,18 @@
       "vulns": []
     },
     {
+      "name": "urllib3",
+      "version": "2.2.3",
+      "vulns": []
+    },
+    {
       "name": "pip-system-certs",
       "version": "4.0",
       "vulns": []
     },
     {
       "name": "bandit",
-      "version": "1.7.9",
+      "version": "1.7.10",
       "vulns": []
     },
     {
@@ -47,7 +52,7 @@
     },
     {
       "name": "botocore",
-      "version": "1.34.162",
+      "version": "1.35.53",
       "vulns": []
     },
     {
@@ -62,17 +67,17 @@
     },
     {
       "name": "cffi",
-      "version": "1.17.0",
+      "version": "1.17.1",
       "vulns": []
     },
     {
       "name": "charset-normalizer",
-      "version": "3.3.2",
+      "version": "3.4.0",
       "vulns": []
     },
     {
       "name": "cyclonedx-python-lib",
-      "version": "7.6.0",
+      "version": "7.6.2",
       "vulns": []
     },
     {
@@ -82,7 +87,7 @@
     },
     {
       "name": "idna",
-      "version": "3.8",
+      "version": "3.10",
       "vulns": []
     },
     {
@@ -106,13 +111,18 @@
       "vulns": []
     },
     {
+      "name": "python-dateutil",
+      "version": "2.9.0.post0",
+      "vulns": []
+    },
+    {
       "name": "rich",
-      "version": "13.8.0",
+      "version": "13.9.3",
       "vulns": []
     },
     {
       "name": "s3transfer",
-      "version": "0.10.2",
+      "version": "0.10.3",
       "vulns": []
     },
     {
@@ -126,23 +136,18 @@
       "vulns": []
     },
     {
-      "name": "urllib3",
-      "version": "2.2.2",
-      "vulns": []
-    },
-    {
       "name": "wrapt",
       "version": "1.16.0",
       "vulns": []
     },
     {
       "name": "filelock",
-      "version": "3.15.4",
+      "version": "3.16.1",
       "vulns": []
     },
     {
       "name": "license-expression",
-      "version": "30.3.1",
+      "version": "30.4.0",
       "vulns": []
     },
     {
@@ -152,12 +157,12 @@
     },
     {
       "name": "msgpack",
-      "version": "1.0.8",
+      "version": "1.1.0",
       "vulns": []
     },
     {
       "name": "packageurl-python",
-      "version": "0.15.6",
+      "version": "0.16.0",
       "vulns": []
     },
     {
@@ -167,17 +172,12 @@
     },
     {
       "name": "py-serializable",
-      "version": "1.1.0",
+      "version": "1.1.2",
       "vulns": []
     },
     {
       "name": "pygments",
       "version": "2.18.0",
-      "vulns": []
-    },
-    {
-      "name": "python-dateutil",
-      "version": "2.9.0.post0",
       "vulns": []
     },
     {
@@ -197,7 +197,7 @@
     },
     {
       "name": "pyparsing",
-      "version": "3.1.4",
+      "version": "3.2.0",
       "vulns": []
     },
     {
